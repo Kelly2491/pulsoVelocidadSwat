@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWAT Velocity Pulse Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom Scrollbar for better UI */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #020617; } /* slate-950 */
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; } /* slate-800 */
+        ::-webkit-scrollbar-thumb:hover { background: #334155; } /* slate-700 */
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .animate-scale-up { animation: scaleUp 0.3s ease-out; }
+        @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col antialiased selection:bg-teal-500 selection:text-slate-900 overflow-x-hidden">
+
+    <!-- MODAL DE CONFIRMACIÓN -->
+    <div id="confirmModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up">
+            <div class="flex gap-3">
+                <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg shrink-0 h-fit">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-100">Confirmación requerida</h3>
+                    <p id="confirmMessage" class="text-xs text-slate-400 mt-1"></p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="closeConfirmModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200">Cancelar</button>
+                <button id="confirmBtn" class="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-slate-100 rounded-lg">Sí, Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICACIÓN (TOAST) -->
+    <div id="notificationToast" class="fixed bottom-5 right-5 z-[200] max-w-sm w-full bg-slate-900 border rounded-xl p-4 shadow-2xl flex items-start gap-3 border-emerald-500/50 transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none">
+        <div id="notifIconWrapper" class="p-1 rounded-lg bg-emerald-500/10 text-emerald-400">
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1">
+            <p class="text-xs font-bold text-slate-200">Acción completada</p>
+            <p id="notifMessage" class="text-xs text-slate-400 mt-1"></p>
+        </div>
+        <button onclick="hideNotification()" class="text-slate-500 hover:text-slate-300">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+
+    <!-- HEADER TÁCTICO -->
+    <header class="border-b border-slate-800/80 bg-slate-900 shadow-md sticky top-0 z-[100] px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-lg bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 font-black shadow-inner">S</div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold tracking-widest text-teal-400 uppercase bg-teal-950/80 px-2 py-0.5 rounded border border-teal-500/20">SWAT TEAM</span>
+                        <span class="text-xs text-slate-400">• Pulso de Velocidad Anónimo</span>
+                    </div>
+                    <h1 class="text-xl font-bold text-slate-100 tracking-tight mt-0.5">Métrica & Feedback de Desempeño</h1>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <div id="sprintFiltersContainer" class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-1 relative z-50">
+                    <!-- Botones de Sprints se inyectan aquí -->
+                </div>
+
+                <button onclick="exportCSV()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-2 border border-slate-700 hover:scale-105 active:scale-95">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar CSV
+                </button>
+
+                <button onclick="openUploadModal()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-2 border border-emerald-400/30 hover:scale-105 active:scale-95">
+                    <i data-lucide="upload" class="w-3.5 h-3.5"></i> Cargar Sprint
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- SUB-HEADER / NAV TABS -->
+    <div class="bg-slate-900/30 border-b border-slate-800/40 px-6">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <nav class="flex gap-1 py-2 w-full overflow-x-auto no-scrollbar" id="navTabs">
+                <button onclick="setTab('dashboard')" id="btnTabDashboard" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap text-teal-400 bg-slate-900/80 border-b-2 border-teal-400 rounded-b-none">
+                    <i data-lucide="trending-up" class="w-4 h-4"></i> Vista General
+                </button>
+                <button onclick="setTab('responses')" id="btnTabResponses" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap text-slate-400 hover:text-slate-200">
+                    <i data-lucide="message-square" class="w-4 h-4"></i> Respuestas & Feedback (<span id="responsesCountBadge">0</span>)
+                </button>
+                <button onclick="setTab('analytics')" id="btnTabAnalytics" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap text-slate-400 hover:text-slate-200">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i> Fricciones y Retrasos
+                </button>
+            </nav>
+            
+            <div class="text-xs text-slate-500 flex items-center gap-3 shrink-0 py-2">
+                <button onclick="handleReset()" class="text-rose-400/80 hover:text-rose-400 transition-colors flex items-center gap-1 hover:underline" title="Borrar cargados y restaurar predeterminados">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Limpiar Memoria
+                </button>
+                <span class="text-slate-700 hidden sm:inline">|</span>
+                <div class="hidden sm:flex items-center gap-1.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                    Última actualización: <strong class="text-slate-300" id="lastUpdateDate">2026-05-21</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+        <!-- DIAGNÓSTICO IA (SALUD DEL EQUIPO) -->
+        <div id="teamHealthBanner">
+            <!-- Se inyecta por JS -->
+        </div>
+
+        <!-- TABS CONTENT -->
+        
+        <!-- PANTALLA: DASHBOARD -->
+        <div id="view-dashboard" class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpiContainer"></div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- GRÁFICOS APILADOS -->
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-6 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-100">Tendencia de Velocidad Percibida</h3>
+                            <p class="text-xs text-slate-400">Evolución de la moral y velocidad de las últimas 3 iteraciones activas</p>
+                        </div>
+                        <span class="text-[11px] font-semibold text-teal-400 bg-teal-950/40 border border-teal-500/20 px-2 py-1 rounded hidden sm:inline-block">Ventana de 3 Sprints</span>
+                    </div>
+                    <div id="chartsContainer" class="space-y-6"></div>
+                    <div class="mt-6 pt-4 border-t border-slate-800/60 grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
+                        <div class="flex items-center justify-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 block"></span>Alta / Ritmo Ágil</div>
+                        <div class="flex items-center justify-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 rounded-full bg-yellow-400 block"></span>Adecuada / Esperado</div>
+                        <div class="flex items-center justify-center gap-1.5 text-slate-400"><span class="w-2.5 h-2.5 rounded-full bg-rose-400 block"></span>Baja / Con Retrasos</div>
+                    </div>
+                </div>
+
+                <!-- FACTORES TOP -->
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-100">Factores de Freno Principales</h3>
+                        <p class="text-xs text-slate-400 mb-4">¿Qué es lo que más ralentiza el rendimiento SWAT?</p>
+                        <div id="topFactorsContainer" class="space-y-3.5"></div>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-slate-800/60">
+                        <button onclick="setTab('analytics')" class="w-full py-2 bg-slate-800 hover:bg-slate-700/80 text-xs font-semibold text-slate-200 rounded-lg transition-colors flex items-center justify-center gap-2">
+                            Análisis de Fricción Detallado <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OBSERVACIONES DESTACADAS -->
+            <div class="bg-slate-900/40 border border-slate-800/80 rounded-xl p-6">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-100">Línea de Tiempo & Observaciones Relevantes</h3>
+                        <p class="text-xs text-slate-400">Declaraciones críticas del equipo SWAT que explican su ritmo</p>
+                    </div>
+                    <button onclick="clearSearchAndGoToResponses()" class="text-xs text-teal-400 hover:text-teal-300 font-medium flex items-center gap-1">
+                        Ver todas las opiniones <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div id="highlightedCommentsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+        </div>
+
+        <!-- PANTALLA: RESPUESTAS & FEEDBACK -->
+        <div id="view-responses" class="space-y-6 hidden">
+            <!-- BARRA DE BÚSQUEDA Y FILTROS -->
+            <div class="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div class="relative w-full md:w-96">
+                    <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-500"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar por factor u observación cualitativa..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-xs focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-colors placeholder:text-slate-500 text-slate-200" oninput="handleSearch(this.value)">
+                </div>
+
+                <div class="flex flex-wrap gap-3 items-center w-full md:w-auto">
+                    <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                        <i data-lucide="filter" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span class="text-xs font-semibold text-slate-400">Velocidad:</span>
+                        <select id="speedFilterSelect" onchange="handleSpeedFilter(this.value)" class="bg-transparent border-none text-xs focus:outline-none text-slate-300 font-semibold cursor-pointer">
+                            <option value="all" class="bg-slate-950 text-slate-300">Todas</option>
+                            <option value="alta" class="bg-slate-950 text-emerald-400">Alta</option>
+                            <option value="adecuada" class="bg-slate-950 text-yellow-400">Adecuada</option>
+                            <option value="baja" class="bg-slate-950 text-rose-400">Baja</option>
+                        </select>
+                    </div>
+                    <div class="text-xs text-slate-500 font-semibold" id="showingCountText"></div>
+                </div>
+            </div>
+
+            <!-- SENTIMENT ANALYSIS WIDGET -->
+            <div id="sentimentWidgetContainer"></div>
+
+            <!-- RESPONSES GRID (LIST + DETAIL) -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden lg:col-span-2">
+                    <div class="border-b border-slate-800 px-4 py-3 bg-slate-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider font-semibold">Listado de Respuestas de SWAT</h3>
+                        <span class="text-[10px] text-slate-500">Selecciona un registro para ver el detalle</span>
+                    </div>
+                    <div id="responsesListContainer" class="divide-y divide-slate-800 max-h-[600px] overflow-y-auto"></div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 h-fit sticky top-28 shadow-lg" id="responseDetailContainer">
+                    <div class="py-24 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
+                        <i data-lucide="message-square" class="w-8 h-8 text-slate-600 animate-bounce"></i>
+                        <span>Selecciona un reporte de la tabla para analizar el feedback detallado.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANTALLA: ANÁLISIS DE FRICCIONES -->
+        <div id="view-analytics" class="space-y-6 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-6">
+                    <h3 class="text-base font-bold text-slate-100 mb-2">Diagnóstico de Impedimentos Frecuentes</h3>
+                    <p class="text-xs text-slate-400 mb-6">Frecuencia agregada de factores ralentizadores identificados en Sprints activos.</p>
+                    <div class="space-y-4">
+                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span><span class="text-xs font-bold text-slate-200">Reuniones Excesivas / Estimaciones</span></div>
+                                <span class="text-xs text-amber-400 font-bold self-start sm:self-auto ml-4 sm:ml-0">Crítico</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">
+                                El cambio continuo de foco para estimaciones complejas genera un patrón de intermitencia de foco técnico.
+                            </p>
+                        </div>
+                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span><span class="text-xs font-bold text-slate-200">Cambios de Alcance / Prioridades</span></div>
+                                <span class="text-xs text-amber-400 font-bold self-start sm:self-auto ml-4 sm:ml-0">Alto</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">
+                                El cambio de prioridades a mitad de desarrollo genera un reproceso que frena la cadencia continua. Al retomar tareas pendientes, la curva de re-adaptación ralentiza los tiempos.
+                            </p>
+                        </div>
+                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span><span class="text-xs font-bold text-slate-200">Curva de Aprendizaje (Código Legado)</span></div>
+                                <span class="text-xs text-teal-400 font-bold self-start sm:self-auto ml-4 sm:ml-0">Medio</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">
+                                La inmersión en productos heredados demanda más tiempo del previsto para que el equipo SWAT asimile el contexto técnico.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-100 mb-2">Plan de Estabilización Propuesto</h3>
+                        <p class="text-xs text-slate-400 mb-6">Acciones sugeridas de Scrum Master y Product Owner para reducir las fricciones reportadas.</p>
+                        <div class="space-y-4">
+                            <div class="flex gap-3">
+                                <div class="h-6 w-6 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs shrink-0">1</div>
+                                <div><h4 class="text-xs font-bold text-slate-200">Blindar el Foco del Sprint</h4><p class="text-xs text-slate-400 mt-0.5">Establecer política de no-interrupción para estimaciones durante el sprint. Concentrarlas en Refinamiento.</p></div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="h-6 w-6 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs shrink-0">2</div>
+                                <div><h4 class="text-xs font-bold text-slate-200">Refinar Definición de Listo (DoR)</h4><p class="text-xs text-slate-400 mt-0.5">Asegurar que toda historia posea criterios de aceptación claros y documentación antes de ingresar al backlog de planeación.</p></div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="h-6 w-6 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs shrink-0">3</div>
+                                <div><h4 class="text-xs font-bold text-slate-200">Mitigación de Código Legado</h4><p class="text-xs text-slate-400 mt-0.5">Asignar sesiones de Pair Programming o transferencia técnica al abordar productos legados complejos.</p></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-8 pt-4 border-t border-slate-800/60 p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span class="text-xs text-slate-400">Estado SWAT:</span><strong class="text-xs text-emerald-400">Activo</strong>
+                        </div>
+                        <button onclick="setTab('dashboard')" class="text-xs text-teal-400 hover:text-teal-300 font-semibold">Volver al Dashboard</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL DE CARGA -->
+    <div id="uploadModal" class="fixed inset-0 z-[150] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-scale-up my-8">
+            <div class="border-b border-slate-800/80 px-6 py-4 bg-slate-950/40 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                    <h3 class="text-sm font-bold text-slate-200 uppercase tracking-wider">Cargar Pulso de Nuevo Sprint</h3>
+                </div>
+                <button onclick="closeUploadModal()" class="text-slate-400 hover:text-slate-200"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div class="bg-teal-950/30 border border-teal-500/20 p-3 rounded-lg text-xs text-teal-300 flex gap-2 items-start">
+                    <i data-lucide="info" class="w-5 h-5 shrink-0"></i>
+                    <span>El sistema procesará los datos pero **eliminará de inmediato** los nombres y correos para mantener anonimato absoluto.</span>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">Identificador del Sprint:</label>
+                    <input type="text" id="uploadSprintName" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">Periodo:</label>
+                    <input type="text" id="uploadSprintPeriod" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">Archivo de Respuestas (Formato CSV de Excel):</label>
+                    <div id="dropZone" class="border-2 border-dashed border-slate-800 bg-slate-950/40 hover:border-slate-700 rounded-xl p-6 text-center transition-all relative cursor-pointer">
+                        <input type="file" id="fileInput" accept=".csv,.txt" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="space-y-2 flex flex-col items-center">
+                            <i data-lucide="upload" class="w-10 h-10 text-emerald-400/80"></i>
+                            <div class="text-xs"><span class="text-emerald-400 font-bold hover:underline">Haz clic para cargar</span> o arrastra tu archivo aquí</div>
+                            <p class="text-[10px] text-slate-500">Admite archivos .csv o .txt</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="uploadFeedback" class="hidden p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-lg flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2 text-emerald-300">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+                        <span class="truncate max-w-[200px] sm:max-w-[300px]">Archivo listo: <strong id="uploadedFileName"></strong></span>
+                    </div>
+                    <button onclick="clearUploadFile()" class="text-slate-400 hover:text-slate-200 text-[10px] hover:underline shrink-0">Remover</button>
+                </div>
+                <div id="uploadError" class="hidden p-3 bg-rose-950/40 border border-rose-500/20 text-rose-300 text-xs rounded-lg font-medium"></div>
+            </div>
+            <div class="border-t border-slate-800/80 px-6 py-4 bg-slate-950/40 flex justify-end gap-3">
+                <button onclick="closeUploadModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200">Cancelar</button>
+                <button onclick="saveSprint()" class="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-slate-950 rounded-lg transition-colors flex items-center gap-1.5">
+                    <i data-lucide="check" class="w-4 h-4 text-slate-950"></i> Procesar Anónimamente
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="border-t border-slate-900 bg-slate-950 py-6 px-6 mt-auto">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+            <div class="text-center sm:text-left"><span>© 2026 SWAT Velocity Pulse Tracker. Todos los derechos reservados.</span></div>
+            <div class="flex gap-4"><span class="hover:text-slate-400 cursor-pointer">Seguridad</span><span>•</span><span class="hover:text-slate-400 cursor-pointer">Metodología Ágil</span></div>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // DATOS BASE
+        const DEFAULT_SPRINTS = [
+            {
+                id: "s74", name: "Sprint 74", period: "Abril 2026",
+                responses: [
+                    { id: 1, anonymousName: "Colaborador Anónimo #1", speed: "Adecuada", factors: ["Cambios de alcance", "Dependencias externas"], observation: "Hubo inconsistencias en la documentación adjunta a algunas historias de usuario que generaron confusión y causaron demoras en el cierre de HUs" },
+                    { id: 2, anonymousName: "Colaborador Anónimo #2", speed: "Adecuada", factors: ["Cambios de alcance", "Bloqueos técnicos", "Deuda técnica", "Muchas reuniones"], observation: "El cambio de prioridades dentro del equipo, genera reprocesos al momento de retomar las tareas que fueron detenidas para iniciar con lo nuevo. Esto ralentiza el proceso de desarrollo y es posible que no se logre finalizar nada de lo planeado en el sprint." },
+                    { id: 3, anonymousName: "Colaborador Anónimo #3", speed: "Adecuada", factors: ["Carga excesiva", "Ausencias", "Muchas reuniones"], observation: "" },
+                    { id: 4, anonymousName: "Colaborador Anónimo #4", speed: "Adecuada", factors: ["Curva de aprendizaje", "Movimiento de personas clave", "Cambios de alcance"], observation: "Percibo el pool muy enfocado en la experiencia del equipo técnico" },
+                    { id: 5, anonymousName: "Colaborador Anónimo #5", speed: "Alta", factors: ["Fallas en pruebas"], observation: "Al momento de desplegar en ambiente de test el ajuste del módulo de conducción, el api de drivers tiene un problema de validación con el token" },
+                    { id: 6, anonymousName: "Colaborador Anónimo #6", speed: "Adecuada", factors: ["Muchas reuniones", "Dependencias externas"], observation: "Se avanzó a buen ritmo a pesar de las reuniones de alineación o estimaciones adicionales." },
+                    { id: 7, anonymousName: "Colaborador Anónimo #7", speed: "Adecuada", factors: ["Ninguno"], observation: "Buen ritmo en general" },
+                    { id: 8, anonymousName: "Colaborador Anónimo #8", speed: "Adecuada", factors: ["Bloqueos técnicos"], observation: "Soporte de infraestructura ayudó a resolver de manera oportuna" }
+                ]
+            },
+            {
+                id: "s75", name: "Sprint 75", period: "Mayo 2026 (Inicios)",
+                responses: [
+                    { id: 1, anonymousName: "Colaborador Anónimo #1", speed: "Baja", factors: ["Muchas reuniones", "Ausencias"], observation: "" },
+                    { id: 2, anonymousName: "Colaborador Anónimo #2", speed: "Baja", factors: ["Cambios de alcance", "Muchas reuniones", "Estimaciones de alto nivel"], observation: "En este sprint al momento de retomar las HU se evidenció que no se trabaja de manera continua, ya que se cambiaba de foco en las estimaciones de las personalizaciones de cargo antioquia, tcc y logitrans" },
+                    { id: 3, anonymousName: "Colaborador Anónimo #3", speed: "Adecuada", factors: ["Curva de aprendizaje"], observation: "n/a" },
+                    { id: 4, anonymousName: "Colaborador Anónimo #4", speed: "Adecuada", factors: ["Cambios de alcance", "Fallas en pruebas", "Muchas reuniones"], observation: "El dejar temas detenidos mientras se hacen estimaciones y al volver a retomarlos, es un tiempo que impacta directamente la entrega de valor comprometida en el sprint" },
+                    { id: 5, anonymousName: "Colaborador Anónimo #5", speed: "Adecuada", factors: ["Bloqueos técnicos", "Cambios de alcance", "Dependencias externas", "Curva de aprendizaje"], observation: "N/A" },
+                    { id: 6, anonymousName: "Colaborador Anónimo #6", speed: "Adecuada", factors: ["Muchas reuniones", "Fallas en pruebas"], observation: "ninguna" },
+                    { id: 7, anonymousName: "Colaborador Anónimo #7", speed: "Adecuada", factors: ["Cambios de alcance", "Muchas reuniones"], observation: "Se generaron interrupciones puntuales por prioridades emergentes pero se logró solventar" },
+                    { id: 8, anonymousName: "Colaborador Anónimo #8", speed: "Adecuada", factors: ["Ninguno"], observation: "Ritmo estándar de entrega" }
+                ]
+            },
+            {
+                id: "s76", name: "Sprint 76", period: "Mayo 2026 (Mediados)",
+                responses: [
+                    { id: 1, anonymousName: "Colaborador Anónimo #1", speed: "Adecuada", factors: ["Ninguno"], observation: "El desarrollo del sprint se dio de manera correcta" },
+                    { id: 2, anonymousName: "Colaborador Anónimo #2", speed: "Baja", factors: ["Bloqueos técnicos", "Curva de aprendizaje"], observation: "Siento que al estar trabajando primordialmente en hábitos de conducción para tcc, se impactó al equipo, ya que es un producto legado y que estamos entrando a conocer" },
+                    { id: 3, anonymousName: "Colaborador Anónimo #3", speed: "Adecuada", factors: ["Curva de aprendizaje"], observation: "" },
+                    { id: 4, anonymousName: "Colaborador Anónimo #4", speed: "Adecuada", factors: ["Dependencias externas"], observation: "Faltaron algunas definiciones de diseño al inicio pero se resolvió ágilmente" },
+                    { id: 5, anonymousName: "Colaborador Anónimo #5", speed: "Adecuada", factors: ["Ninguno"], observation: "Buen cierre de sprint, el equipo estuvo bastante concentrado" }
+                ]
+            }
+        ];
+
+        // STATE
+        let state = {
+            sprints: [],
+            selectedSprint: 'all',
+            selectedSpeedFilter: 'all',
+            searchTerm: '',
+            activeTab: 'dashboard',
+            selectedResponse: null,
+            rawCSVText: '',
+            uploadedFileName: ''
+        };
+
+        // INICIALIZACIÓN
+        function init() {
+            lucide.createIcons();
+            const saved = localStorage.getItem('swat_custom_sprints');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.sprints = [...DEFAULT_SPRINTS, ...parsed].slice(-3);
+                } catch (e) {
+                    state.sprints = [...DEFAULT_SPRINTS];
+                }
+            } else {
+                state.sprints = [...DEFAULT_SPRINTS];
+            }
+            renderAll();
+        }
+
+        // --- FUNCIONES DE CÁLCULO ---
+        function getFilteredResponses() {
+            let result = [];
+            state.sprints.forEach(sprint => {
+                if (state.selectedSprint === 'all' || state.selectedSprint === sprint.id) {
+                    sprint.responses.forEach(resp => {
+                        result.push({ ...resp, sprintId: sprint.id, sprintName: sprint.name, period: sprint.period });
+                    });
+                }
+            });
+
+            if (state.selectedSpeedFilter !== 'all') {
+                result = result.filter(r => r.speed.toLowerCase() === state.selectedSpeedFilter.toLowerCase());
+            }
+            if (state.searchTerm.trim() !== '') {
+                const term = state.searchTerm.toLowerCase();
+                result = result.filter(r => 
+                    r.anonymousName.toLowerCase().includes(term) ||
+                    r.observation.toLowerCase().includes(term) ||
+                    r.factors.some(f => f.toLowerCase().includes(term))
+                );
+            }
+            return result;
+        }
+
+        function getSentiment(text) {
+            if (!text || text.trim() === "") return "none";
+            const cleanText = text.toLowerCase().trim();
+            const defaultResponses = ["na", "n/a", "none", "ninguna", "ninguna.", "ninguno", "ninguna observación.", "ninguna observación", "ninguna observación adicional", "ninguno.", "n/a", ""];
+            if (defaultResponses.includes(cleanText)) return "none";
+
+            const positiveWords = ["bien", "correcto", "correcta", "buen", "excelente", "adecuado", "éxito", "solucionar", "logró", "estables", "estabilidad", "rápido", "solucionaron", "oportuna", "concentrado", "avanzó", "aportó", "estable", "ayudó", "solventar", "ayuda", "oportuno", "concentrados", "apoyo"];
+            const negativeWords = ["reproceso", "reprocesos", "ralentiza", "ralentizar", "confusión", "demoras", "detenidas", "frenar", "bloqueo", "bloqueos", "error", "falla", "fallas", "problema", "inconsistencias", "retrasaron", "bugs", "inconsistencia", "demora", "limitar", "afectado", "interrupciones", "detenidos", "problemas"];
+
+            let posScore = 0, negScore = 0;
+            positiveWords.forEach(word => { if (cleanText.includes(word)) posScore++; });
+            negativeWords.forEach(word => { if (cleanText.includes(word)) negScore++; });
+
+            if (posScore > negScore) return "positive";
+            if (negScore > posScore) return "negative";
+            return "neutral";
+        }
+
+        function getStats() {
+            let total = 0, alta = 0, adecuada = 0, baja = 0;
+            const factorCounts = {};
+
+            state.sprints.forEach(sprint => {
+                if (state.selectedSprint === 'all' || state.selectedSprint === sprint.id) {
+                    sprint.responses.forEach(resp => {
+                        total++;
+                        if (resp.speed === 'Alta') alta++;
+                        else if (resp.speed === 'Adecuada') adecuada++;
+                        else if (resp.speed === 'Baja') baja++;
+
+                        resp.factors.forEach(f => {
+                            if (f !== "Ninguno" && f !== "Ninguna" && f !== "") {
+                                factorCounts[f] = (factorCounts[f] || 0) + 1;
+                            }
+                        });
+                    });
+                }
+            });
+
+            const sortedFactors = Object.keys(factorCounts).map(name => ({
+                name, count: factorCounts[name], percentage: total > 0 ? Math.round((factorCounts[name] / total) * 100) : 0
+            })).sort((a, b) => b.count - a.count);
+
+            return {
+                total, alta, adecuada, baja,
+                altaPercent: total > 0 ? Math.round((alta / total) * 100) : 0,
+                adecuadaPercent: total > 0 ? Math.round((adecuada / total) * 100) : 0,
+                bajaPercent: total > 0 ? Math.round((baja / total) * 100) : 0,
+                factors: sortedFactors
+            };
+        }
+
+        // --- RENDERIZADO PRINCIPAL ---
+        function renderAll() {
+            renderHeaderFilters();
+            renderTabs();
+            
+            const stats = getStats();
+            const filteredResponses = getFilteredResponses();
+            
+            // Actualizar contadores globales
+            document.getElementById('responsesCountBadge').innerText = filteredResponses.length;
+            document.getElementById('showingCountText').innerText = `Mostrando ${filteredResponses.length} de ${stats.total} respuestas anónimas`;
+            
+            if(state.activeTab === 'dashboard') {
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                document.getElementById('view-responses').classList.add('hidden');
+                document.getElementById('view-analytics').classList.add('hidden');
+                renderHealthBanner(stats);
+                renderKPIs(stats);
+                renderCharts();
+                renderTopFactors(stats);
+                renderHighlightedComments(filteredResponses);
+            } else if (state.activeTab === 'responses') {
+                document.getElementById('view-dashboard').classList.add('hidden');
+                document.getElementById('view-responses').classList.remove('hidden');
+                document.getElementById('view-analytics').classList.add('hidden');
+                renderHealthBanner(stats);
+                renderSentimentWidget(filteredResponses);
+                renderResponsesList(filteredResponses);
+                renderResponseDetail(); // detail is part of responses
+            } else if (state.activeTab === 'analytics') {
+                document.getElementById('view-dashboard').classList.add('hidden');
+                document.getElementById('view-responses').classList.add('hidden');
+                document.getElementById('view-analytics').classList.remove('hidden');
+                renderHealthBanner(stats);
+            }
+            
+            lucide.createIcons();
+        }
+
+        // --- COMPONENTES ---
+        function renderHeaderFilters() {
+            const container = document.getElementById('sprintFiltersContainer');
+            let html = `<button type="button" onclick="handleSprintSelect('all')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-all active:scale-95 cursor-pointer ${state.selectedSprint === 'all' ? 'bg-teal-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">Todos</button>`;
+            
+            state.sprints.forEach(sprint => {
+                html += `<button type="button" onclick="handleSprintSelect('${sprint.id}', '${sprint.name}')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-all active:scale-95 cursor-pointer ${state.selectedSprint === sprint.id ? 'bg-teal-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">${sprint.name}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderTabs() {
+            const tabs = ['Dashboard', 'Responses', 'Analytics'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`btnTab${t}`);
+                if (state.activeTab === t.toLowerCase()) {
+                    btn.className = "px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap text-teal-400 bg-slate-900/80 border-b-2 border-teal-400 rounded-b-none";
+                } else {
+                    btn.className = "px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap text-slate-400 hover:text-slate-200";
+                }
+            });
+        }
+
+        function renderHealthBanner(stats) {
+            const positiveRate = stats.adecuadaPercent + stats.altaPercent;
+            const mainBlocker = stats.factors[0];
+
+            let status = 'ESTABLE', title = 'SALUD ÓPTIMA: RITMO Y MORAL ESTABLES';
+            let colorClass = 'text-emerald-400', bgClass = 'bg-emerald-500/10', borderClass = 'border-emerald-500/30';
+            let icon = 'check-circle', dotColor = 'bg-emerald-400';
+            let suggestion = "Mantener las prácticas actuales y asegurar que el equipo no sufra sobrecarga en las próximas iteraciones.";
+
+            if (positiveRate < 60) {
+                status = 'CRÍTICO'; title = 'SALUD EN RIESGO: ALERTAS DE VELOCIDAD DETECTADAS';
+                colorClass = 'text-rose-400'; bgClass = 'bg-rose-500/10'; borderClass = 'border-rose-500/30';
+                icon = 'alert-triangle'; dotColor = 'bg-rose-400';
+            } else if (positiveRate < 80) {
+                status = 'PRECAUCIÓN'; title = 'SALUD MODERADA: FRICCIONES IMPACTANDO EL RITMO';
+                colorClass = 'text-yellow-400'; bgClass = 'bg-yellow-500/10'; borderClass = 'border-yellow-500/30';
+                icon = 'shield-alert'; dotColor = 'bg-yellow-400';
+            }
+
+            if (mainBlocker && mainBlocker.name !== "Ninguno") {
+                const factorName = mainBlocker.name.toLowerCase();
+                if (factorName.includes('alcance') || factorName.includes('prioridades')) suggestion = "Exigir mayor rigor en la 'Definition of Ready' (DoR) y bloquear formalmente ingresos no planificados en medio del Sprint.";
+                else if (factorName.includes('reuniones') || factorName.includes('estimaciones')) suggestion = "Auditar el calendario del equipo y consolidar ceremonias para proteger bloques ininterrumpidos de tiempo (Deep Work).";
+                else if (factorName.includes('bloqueos') || factorName.includes('dependencias')) suggestion = "Acelerar la resolución de dependencias técnicas mediante sincronizaciones diarias más enfocadas únicamente en impedimentos.";
+                else if (factorName.includes('curva') || factorName.includes('legado')) suggestion = "Fomentar sesiones de Pair Programming o espacios de transferencia técnica (Tech Talks) para reducir la curva de aprendizaje.";
+                else if (factorName.includes('pruebas') || factorName.includes('bugs')) suggestion = "Fortalecer los procesos de QA temprano (Shift-Left Testing) y garantizar ambientes de despliegue estables antes de iniciar el sprint.";
+                else suggestion = "Programar una retrospectiva enfocada en la causa raíz de este factor particular para encontrar soluciones conjuntas.";
+            }
+
+            let html = `
+                <div class="p-4 bg-slate-900/60 border rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 transition-colors duration-500 shadow-md ${borderClass}">
+                    <div class="flex items-start gap-4">
+                        <div class="p-3 rounded-xl flex items-center justify-center shrink-0 border mt-1 lg:mt-0 ${bgClass} ${colorClass} border-current/20">
+                            <i data-lucide="${icon}" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <h4 class="text-sm font-black uppercase tracking-wide ${colorClass}">${title}</h4>
+                            <p class="text-xs text-slate-300 leading-relaxed max-w-4xl">
+                                <span class="font-bold text-slate-200">ESTABILIDAD:</span> El <strong class="${colorClass}">${positiveRate}%</strong> mantiene un ritmo operacional adecuado o ágil, indicando un flujo sostenible. 
+                                ${mainBlocker && mainBlocker.name !== "Ninguno" 
+                                    ? `El mayor bloqueador es <strong class="text-slate-200">"${mainBlocker.name}"</strong> (presente en el ${mainBlocker.percentage}% de los reportes).` 
+                                    : `No se detectan bloqueadores significativos impactando en este corte temporal.`}
+                                👉 <span class="font-bold text-slate-200">Sugerencia Táctica:</span> ${suggestion}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2 shrink-0 self-start lg:self-center">
+                        <div class="bg-slate-950 border border-slate-800 rounded-lg py-2 px-4 flex flex-col items-center justify-center min-w-[130px] shadow-inner">
+                            <span class="text-[10px] font-black text-slate-500 tracking-widest uppercase mb-1">DIAGNÓSTICO IA</span>
+                            <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${colorClass}">
+                                <span class="w-2 h-2 rounded-full ${dotColor} animate-pulse"></span>${status}
+                            </div>
+                        </div>
+                        ${state.selectedSprint !== 'all' ? `
+                        <button onclick="setTab('responses')" class="text-[10px] font-bold text-slate-400 hover:text-teal-400 transition-colors flex items-center justify-center gap-1 bg-slate-900 border border-slate-800 rounded-lg py-1.5 w-full">
+                            Ver Feedback <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                        </button>` : ''}
+                    </div>
+                </div>`;
+            document.getElementById('teamHealthBanner').innerHTML = html;
+        }
+
+        function renderKPIs(stats) {
+            let topFactorName = stats.factors[0]?.name || "Ninguno";
+            let topFactorCount = stats.factors[0]?.count || 0;
+            
+            document.getElementById('kpiContainer').innerHTML = `
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all shadow-sm">
+                    <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Respuestas Totales</span><div class="p-1.5 bg-slate-800 rounded-lg text-slate-300"><i data-lucide="users" class="w-4 h-4"></i></div></div>
+                    <div class="mt-3 flex items-baseline gap-2"><span class="text-3xl font-extrabold text-slate-100">${stats.total}</span><span class="text-xs text-teal-400 font-semibold">Participantes</span></div>
+                    <p class="text-[11px] text-slate-500 mt-1.5">Sprints en memoria: ${state.sprints.length}</p>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all shadow-sm">
+                    <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sentimiento Adecuado</span><div class="p-1.5 bg-yellow-500/10 rounded-lg text-yellow-400"><i data-lucide="check-circle" class="w-4 h-4"></i></div></div>
+                    <div class="mt-3 flex items-baseline gap-2"><span class="text-3xl font-extrabold text-yellow-400">${stats.adecuadaPercent}%</span><span class="text-xs text-slate-400">${stats.adecuada} respuestas</span></div>
+                    <p class="text-[11px] text-slate-500 mt-1.5">Velocidad estándar confortable</p>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all shadow-sm">
+                    <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sentimiento de Alerta (Bajo)</span><div class="p-1.5 bg-rose-500/10 rounded-lg text-rose-400"><i data-lucide="shield-alert" class="w-4 h-4"></i></div></div>
+                    <div class="mt-3 flex items-baseline gap-2"><span class="text-3xl font-extrabold text-rose-400">${stats.bajaPercent}%</span><span class="text-xs text-slate-400">${stats.baja} respuestas</span></div>
+                    <p class="text-[11px] text-rose-500/80 mt-1.5">Obstáculos críticos reportados</p>
+                </div>
+                <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 hover:border-slate-700/80 transition-all shadow-sm">
+                    <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fricción Principal</span><div class="p-1.5 bg-amber-500/10 rounded-lg text-amber-400"><i data-lucide="alert-triangle" class="w-4 h-4"></i></div></div>
+                    <div class="mt-3 flex items-baseline gap-2"><span class="text-base font-bold text-amber-300 truncate max-w-[190px]" title="${topFactorName}">${topFactorName}</span></div>
+                    <p class="text-[11px] text-slate-500 mt-2">Presente en ${topFactorCount} reportes</p>
+                </div>
+            `;
+        }
+
+        function renderCharts() {
+            let html = '';
+            state.sprints.forEach(sprint => {
+                const total = sprint.responses.length;
+                const alta = sprint.responses.filter(r => r.speed === 'Alta').length;
+                const adecuada = sprint.responses.filter(r => r.speed === 'Adecuada').length;
+                const baja = sprint.responses.filter(r => r.speed === 'Baja').length;
+                
+                const altaP = total > 0 ? Math.round((alta / total) * 100) : 0;
+                const adecP = total > 0 ? Math.round((adecuada / total) * 100) : 0;
+                const bajaP = total > 0 ? Math.round((baja / total) * 100) : 0;
+
+                const isSelected = state.selectedSprint === sprint.id;
+
+                html += `
+                    <div class="space-y-2 p-2 -mx-2 rounded-lg transition-all cursor-pointer border ${isSelected ? 'bg-slate-800/50 border-teal-500/30' : 'border-transparent hover:bg-slate-800/30'}" onclick="handleChartClick('${sprint.id}', '${sprint.name}')" title="Haz clic para filtrar por ${sprint.name}">
+                        <div class="flex items-center justify-between text-xs px-1">
+                            <div class="flex items-center gap-2"><span class="font-bold text-slate-200">${sprint.name}</span><span class="text-slate-500">(${total} respuestas)</span></div>
+                            <div class="flex gap-3 font-semibold text-[11px]">
+                                <span class="text-emerald-400 hidden sm:inline">Alta: ${alta}</span>
+                                <span class="text-yellow-400 hidden sm:inline">Adecuada: ${adecuada}</span>
+                                <span class="text-rose-400 hidden sm:inline">Baja: ${baja}</span>
+                            </div>
+                        </div>
+                        <div class="h-6 w-full rounded-lg bg-slate-800/60 overflow-hidden flex shadow-inner border border-slate-700/30">
+                            ${alta > 0 ? `<div style="width: ${altaP}%" class="bg-gradient-to-r from-emerald-500 to-emerald-400 h-full flex items-center justify-center text-[10px] text-emerald-950 font-black transition-all hover:opacity-90">${altaP}%</div>` : ''}
+                            ${adecuada > 0 ? `<div style="width: ${adecP}%" class="bg-gradient-to-r from-yellow-500 to-amber-400 h-full flex items-center justify-center text-[10px] text-slate-950 font-black transition-all hover:opacity-90">${adecP}%</div>` : ''}
+                            ${baja > 0 ? `<div style="width: ${bajaP}%" class="bg-gradient-to-r from-rose-500 to-red-400 h-full flex items-center justify-center text-[10px] text-rose-950 font-black transition-all hover:opacity-90">${bajaP}%</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('chartsContainer').innerHTML = html;
+        }
+
+        function renderTopFactors(stats) {
+            let html = '';
+            stats.factors.slice(0, 5).forEach((f, idx) => {
+                const color = idx === 0 ? 'bg-amber-400' : idx === 1 ? 'bg-amber-500/85' : idx === 2 ? 'bg-amber-600/70' : 'bg-slate-600';
+                html += `
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs"><span class="font-medium text-slate-300 truncate max-w-[170px]">${f.name}</span><span class="text-slate-400 font-bold">${f.count} rep. (${f.percentage}%)</span></div>
+                        <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div style="width: ${f.percentage}%" class="h-full rounded-full ${color}"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('topFactorsContainer').innerHTML = html;
+        }
+
+        function renderHighlightedComments(filteredResponses) {
+            const comments = filteredResponses.filter(r => r.observation && r.observation.trim() !== '' && !["na", "n/a", "none", "ninguna", "ninguna.", "ninguno"].includes(r.observation.toLowerCase().trim())).slice(0, 4);
+            
+            let html = '';
+            if (comments.length > 0) {
+                comments.forEach(c => {
+                    const sentiment = getSentiment(c.observation);
+                    const badgeColor = sentiment === 'positive' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : sentiment === 'negative' ? 'text-rose-400 bg-rose-500/10 border-rose-500/20' : 'text-teal-400 bg-teal-500/10 border-teal-500/20';
+                    const speedColor = c.speed === 'Alta' ? 'text-emerald-400' : c.speed === 'Adecuada' ? 'text-yellow-400' : 'text-rose-400';
+                    
+                    html += `
+                        <div class="bg-slate-900/80 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-slate-700 transition-all">
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded border ${badgeColor}">${c.sprintName}</span>
+                                    <span class="text-[10px] text-slate-500">${c.anonymousName}</span>
+                                </div>
+                                <p class="text-xs text-slate-300 italic line-clamp-4">"${c.observation}"</p>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                                <span class="truncate pr-2">Fricciones: ${c.factors.slice(0, 2).join(', ')}${c.factors.length > 2 ? '...' : ''}</span>
+                                <span class="${speedColor} font-semibold shrink-0">Vel: ${c.speed}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html = `<div class="col-span-1 md:col-span-2 py-8 text-center text-slate-500 text-xs bg-slate-900/40 rounded-xl border border-slate-800/50">No hay observaciones destacadas en la vista actual.</div>`;
+            }
+            document.getElementById('highlightedCommentsContainer').innerHTML = html;
+        }
+
+        function renderSentimentWidget(filteredResponses) {
+            let pos = 0, neg = 0, neu = 0, none = 0;
+            filteredResponses.forEach(r => {
+                const s = getSentiment(r.observation);
+                if(s === 'positive') pos++; else if(s === 'negative') neg++; else if(s === 'neutral') neu++; else none++;
+            });
+            const total = pos + neg + neu;
+            const posP = total > 0 ? Math.round((pos/total)*100) : 0;
+            const negP = total > 0 ? Math.round((neg/total)*100) : 0;
+            const neuP = total > 0 ? Math.round((neu/total)*100) : 0;
+
+            let insightMsg = '';
+            if (total === 0) insightMsg = "No hay comentarios suficientes en los registros activos para generar un diagnóstico cualitativo de texto.";
+            else if (neg > pos) insightMsg = `<span class="text-rose-300">El equipo SWAT expresa mayor preocupación en las observaciones escritas por reprocesos generados al cambiar el foco técnico, interrupciones de estimaciones e inconsistencias documentales.</span>`;
+            else insightMsg = `<span class="text-emerald-300">El equipo valora positivamente la ayuda mutua del soporte técnico de infraestructura y el correcto desarrollo de los flujos de trabajo cuando se cuenta con estabilidad operativa.</span>`;
+
+            const html = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="flex h-2 w-2 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span></span>
+                            <h4 class="text-xs font-bold text-teal-400 uppercase tracking-wider">Análisis Cualitativo de Comentarios</h4>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1">Clasificación lingüística automatizada basada en observaciones escritas.</p>
+                    </div>
+                    <div class="text-left sm:text-right">
+                        <span class="text-[10px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded border border-slate-800 font-bold uppercase inline-block">Evaluados: <span class="text-teal-400 font-black">${total}</span> comentarios</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                    <div class="bg-slate-950 border border-slate-800/60 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-400 flex items-center gap-1.5"><i data-lucide="thumbs-up" class="w-3.5 h-3.5 text-emerald-400"></i> Favorable</span><span class="text-xs font-black text-emerald-400">${posP}%</span></div>
+                            <div class="mt-2 flex items-baseline gap-1"><span class="text-2xl font-black text-slate-100">${pos}</span><span class="text-[10px] text-slate-500 font-bold uppercase">Resp.</span></div>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden mt-1"><div style="width: ${posP}%" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400"></div></div>
+                    </div>
+                    <div class="bg-slate-950 border border-slate-800/60 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-400 flex items-center gap-1.5"><i data-lucide="thumbs-down" class="w-3.5 h-3.5 text-rose-400"></i> Crítico</span><span class="text-xs font-black text-rose-400">${negP}%</span></div>
+                            <div class="mt-2 flex items-baseline gap-1"><span class="text-2xl font-black text-slate-100">${neg}</span><span class="text-[10px] text-slate-500 font-bold uppercase">Resp.</span></div>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden mt-1"><div style="width: ${negP}%" class="h-full bg-gradient-to-r from-rose-500 to-red-400"></div></div>
+                    </div>
+                    <div class="bg-slate-950 border border-slate-800/60 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-400 flex items-center gap-1.5"><i data-lucide="smile" class="w-3.5 h-3.5 text-amber-400"></i> Neutral</span><span class="text-xs font-black text-amber-400">${neuP}%</span></div>
+                            <div class="mt-2 flex items-baseline gap-1"><span class="text-2xl font-black text-slate-100">${neu}</span><span class="text-[10px] text-slate-500 font-bold uppercase">Resp.</span></div>
+                        </div>
+                        <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden mt-1"><div style="width: ${neuP}%" class="h-full bg-gradient-to-r from-amber-500 to-teal-500"></div></div>
+                    </div>
+                </div>
+                <div class="p-3 bg-slate-950 rounded-lg border border-slate-800 text-xs text-slate-400 flex items-start sm:items-center gap-2.5 mt-4">
+                    <i data-lucide="info" class="w-4 h-4 text-teal-400 shrink-0 mt-0.5 sm:mt-0"></i>
+                    <div><span>Se excluyeron <strong class="text-slate-300">${none}</strong> reportes vacíos o estándar (ej. "NA"). ${insightMsg}</span></div>
+                </div>
+            `;
+            document.getElementById('sentimentWidgetContainer').innerHTML = html;
+        }
+
+        function renderResponsesList(filteredResponses) {
+            let html = '';
+            if(filteredResponses.length === 0) {
+                html = `<div class="py-12 text-center text-slate-500 text-xs">No se encontraron resultados con los filtros actuales.</div>`;
+            } else {
+                filteredResponses.forEach((r, index) => {
+                    const isSelected = state.selectedResponse && state.selectedResponse.id === r.id && state.selectedResponse.sprintId === r.sprintId;
+                    const sentiment = getSentiment(r.observation);
+                    
+                    let sentimentBadge = '';
+                    if(sentiment === 'positive') sentimentBadge = `<span class="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Favorable</span>`;
+                    else if(sentiment === 'negative') sentimentBadge = `<span class="text-[9px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Crítico</span>`;
+                    else if(sentiment === 'neutral') sentimentBadge = `<span class="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Neutral</span>`;
+                    else sentimentBadge = `<span class="text-[9px] bg-slate-800/60 text-slate-500 border border-slate-800 px-1.5 py-0.5 rounded font-bold uppercase">Sin Comentario</span>`;
+
+                    const speedClass = r.speed === 'Alta' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : r.speed === 'Adecuada' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+
+                    const factorsHtml = r.factors.map(f => `<span class="text-[9px] bg-slate-800/80 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700/50">${f}</span>`).join('');
+
+                    html += `
+                        <div onclick='selectResponse(${JSON.stringify(r).replace(/'/g, "&apos;")})' class="p-4 hover:bg-slate-800/40 cursor-pointer transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${isSelected ? 'bg-teal-950/20 border-l-4 border-teal-500' : 'border-l-4 border-transparent'}">
+                            <div class="space-y-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-xs font-bold text-slate-200">${r.anonymousName}</span>
+                                    <span class="text-[10px] text-slate-500 font-semibold">[Identidad Omitida]</span>
+                                    ${sentimentBadge}
+                                </div>
+                                <div class="flex flex-wrap gap-1.5 pt-1">${factorsHtml}</div>
+                                ${r.observation ? `<p class="text-xs text-slate-400 mt-1 line-clamp-1 italic">"${r.observation}"</p>` : ''}
+                            </div>
+                            <div class="flex items-center justify-between md:justify-end gap-3 shrink-0 mt-2 md:mt-0">
+                                <div class="text-left md:text-right">
+                                    <span class="text-[10px] font-bold text-slate-500 block">${r.sprintName}</span>
+                                    <span class="text-[9px] text-slate-600 block">${r.period}</span>
+                                </div>
+                                <span class="text-[10px] font-bold px-2.5 py-1 rounded-full text-center min-w-[75px] border ${speedClass}">${r.speed}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('responsesListContainer').innerHTML = html;
+        }
+
+        function renderResponseDetail() {
+            const r = state.selectedResponse;
+            let html = '';
+            if (r) {
+                const speedClass = r.speed === 'Alta' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : r.speed === 'Adecuada' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                const factorsHtml = r.factors.map(f => `<span class="text-[10px] bg-slate-950 text-slate-300 px-2.5 py-1 rounded border border-slate-800 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>${f}</span>`).join('');
+                
+                const hasObs = r.observation && !["na", "n/a", "none", "ninguna", "ninguna.", "ninguno"].includes(r.observation.toLowerCase().trim());
+                const obsHtml = hasObs ? `<p class="text-xs text-slate-300 leading-relaxed italic">"${r.observation}"</p>` : `<p class="text-xs text-slate-600 italic">No registró observaciones en este Sprint.</p>`;
+
+                html = `
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-[10px] font-bold text-teal-400 uppercase tracking-widest block bg-teal-950/50 border border-teal-500/20 px-2 py-0.5 rounded w-fit">${r.sprintName}</span>
+                                <h3 class="text-sm font-bold text-slate-100 mt-2">${r.anonymousName}</h3>
+                                <p class="text-xs text-slate-500 italic">Identidad de origen anonimizada</p>
+                            </div>
+                            <span class="text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap border ${speedClass}">Vel: ${r.speed}</span>
+                        </div>
+                        <div class="border-t border-slate-800/80 pt-4 space-y-3">
+                            <div><span class="text-xs font-bold text-slate-400 block mb-1">Factores declarados:</span><div class="flex flex-wrap gap-1.5">${factorsHtml}</div></div>
+                            <div class="pt-2"><span class="text-xs font-bold text-slate-400 block mb-1">Observación cualitativa:</span><div class="bg-slate-950 border border-slate-800 rounded-lg p-3">${obsHtml}</div></div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                html = `
+                    <div class="py-24 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
+                        <i data-lucide="message-square" class="w-8 h-8 text-slate-600 animate-bounce"></i>
+                        <span>Selecciona un reporte de la tabla para analizar el feedback detallado.</span>
+                    </div>
+                `;
+            }
+            document.getElementById('responseDetailContainer').innerHTML = html;
+        }
+
+        // --- INTERACCIONES Y EVENTOS ---
+        function setTab(tabName) {
+            state.activeTab = tabName;
+            renderAll();
+        }
+
+        function handleSprintSelect(sprintId, sprintName) {
+            state.selectedSprint = sprintId;
+            state.selectedResponse = null;
+            state.activeTab = sprintId === 'all' ? 'dashboard' : 'responses';
+            renderAll();
+            showNotification(sprintId === 'all' ? 'Mostrando todos los sprints consolidados' : `Filtrando métricas y feedback de: ${sprintName}`);
+        }
+
+        function handleChartClick(sprintId, sprintName) {
+            const isSelecting = state.selectedSprint !== sprintId;
+            state.selectedSprint = isSelecting ? sprintId : 'all';
+            state.selectedResponse = null;
+            if (isSelecting) {
+                state.activeTab = 'responses';
+                showNotification(`Filtrando métricas y feedback de: ${sprintName}`);
+            } else {
+                showNotification('Mostrando todos los sprints consolidados');
+            }
+            renderAll();
+        }
+
+        function handleSearch(val) {
+            state.searchTerm = val;
+            renderSentimentWidget(getFilteredResponses());
+            renderResponsesList(getFilteredResponses());
+            lucide.createIcons();
+        }
+
+        function handleSpeedFilter(val) {
+            state.selectedSpeedFilter = val;
+            state.selectedResponse = null;
+            renderSentimentWidget(getFilteredResponses());
+            renderResponsesList(getFilteredResponses());
+            renderResponseDetail();
+            lucide.createIcons();
+        }
+
+        function selectResponse(responseObj) {
+            state.selectedResponse = responseObj;
+            renderResponsesList(getFilteredResponses());
+            renderResponseDetail();
+            lucide.createIcons();
+        }
+
+        function clearSearchAndGoToResponses() {
+            state.searchTerm = '';
+            document.getElementById('searchInput').value = '';
+            setTab('responses');
+        }
+
+        // --- EXPORTAR ---
+        function exportCSV() {
+            try {
+                let csvContent = "\uFEFF"; 
+                csvContent += "Sprint,Colaborador,Velocidad,Factores de Friccion,Observacion\n";
+
+                state.sprints.forEach(sprint => {
+                    sprint.responses.forEach(resp => {
+                        const observationClean = (resp.observation || "").replace(/"/g, '""');
+                        const factorsClean = resp.factors.join("; ");
+                        csvContent += `"${sprint.name}","${resp.anonymousName}","${resp.speed}","${factorsClean}","${observationClean}"\n`;
+                    });
+                });
+
+                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `pulso_velocidad_swat_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                showNotification("Sprints exportados correctamente en formato CSV (Excel).");
+            } catch (e) {
+                alert("Error al exportar datos.");
+            }
+        }
+
+        // --- NOTIFICACIONES Y MODALES ---
+        function showNotification(msg) {
+            const toast = document.getElementById('notificationToast');
+            document.getElementById('notifMessage').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            setTimeout(hideNotification, 4000);
+        }
+        function hideNotification() {
+            const toast = document.getElementById('notificationToast');
+            toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+        }
+
+        function handleReset() {
+            document.getElementById('confirmMessage').innerText = "¿Estás seguro de que deseas eliminar todos los Sprints cargados de forma manual y regresar a los datos oficiales?";
+            document.getElementById('confirmBtn').onclick = () => {
+                localStorage.removeItem('swat_custom_sprints');
+                state.sprints = [...DEFAULT_SPRINTS];
+                state.selectedSprint = 'all';
+                state.selectedResponse = null;
+                closeConfirmModal();
+                renderAll();
+                showNotification("Dashboard restablecido a los datos de fábrica correctamente.");
+            };
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('confirmModal').classList.add('flex');
+        }
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            document.getElementById('confirmModal').classList.remove('flex');
+        }
+
+        // --- LÓGICA DE CARGA DE ARCHIVO ---
+        function openUploadModal() {
+            const lastSprint = state.sprints[state.sprints.length - 1];
+            let nextNumber = 77;
+            if (lastSprint && lastSprint.name) {
+                const matches = lastSprint.name.match(/\d+/);
+                if (matches) nextNumber = parseInt(matches[0]) + 1;
+            }
+            document.getElementById('uploadSprintName').value = `Sprint ${nextNumber}`;
+            
+            const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            const date = new Date();
+            document.getElementById('uploadSprintPeriod').value = `${meses[date.getMonth()]} ${date.getFullYear()}`;
+            
+            clearUploadFile();
+            document.getElementById('uploadError').classList.add('hidden');
+            
+            document.getElementById('uploadModal').classList.remove('hidden');
+            document.getElementById('uploadModal').classList.add('flex');
+        }
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.add('hidden');
+            document.getElementById('uploadModal').classList.remove('flex');
+        }
+        function clearUploadFile() {
+            state.rawCSVText = '';
+            state.uploadedFileName = '';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('uploadFeedback').classList.add('hidden');
+        }
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-400', 'bg-teal-950/10'); });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('border-emerald-400', 'bg-teal-950/10'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-emerald-400', 'bg-teal-950/10');
+            if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length) processFile(e.target.files[0]); });
+
+        function processFile(file) {
+            const errDiv = document.getElementById('uploadError');
+            if (!file.name.endsWith('.csv') && !file.name.endsWith('.txt')) {
+                errDiv.innerText = "Por favor selecciona únicamente un archivo estructurado CSV (.csv o .txt)";
+                errDiv.classList.remove('hidden');
+                return;
+            }
+            errDiv.classList.add('hidden');
+            state.uploadedFileName = file.name;
+            document.getElementById('uploadedFileName').innerText = file.name;
+            document.getElementById('uploadFeedback').classList.remove('hidden');
+
+            const reader = new FileReader();
+            reader.onload = (event) => { state.rawCSVText = event.target.result; };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function parseCSV(text) {
+            const lines = text.split(/\r?\n/);
+            if (lines.length === 0) return { headers: [], data: [] };
+            
+            const splitLine = (line) => {
+                const result = []; let current = ''; let inQuotes = false;
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') inQuotes = !inQuotes;
+                    else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+                    else current += char;
+                }
+                result.push(current.trim()); return result;
+            };
+
+            const headers = splitLine(lines[0]);
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const values = splitLine(lines[i]);
+                const row = {};
+                headers.forEach((header, index) => { row[header] = values[index] || ''; });
+                data.push(row);
+            }
+            return { headers, data };
+        }
+
+        function saveSprint() {
+            const name = document.getElementById('uploadSprintName').value;
+            const period = document.getElementById('uploadSprintPeriod').value;
+            const errDiv = document.getElementById('uploadError');
+
+            if (!name.trim()) { errDiv.innerText = "Por favor escribe el nombre del sprint."; errDiv.classList.remove('hidden'); return; }
+            if (!period.trim()) { errDiv.innerText = "Por favor especifica el periodo de tiempo."; errDiv.classList.remove('hidden'); return; }
+            if (!state.rawCSVText.trim()) { errDiv.innerText = "Por favor selecciona un archivo CSV válido."; errDiv.classList.remove('hidden'); return; }
+
+            try {
+                const { headers, data } = parseCSV(state.rawCSVText);
+
+                const speedHeader = headers.find(h => h.toLowerCase().includes('velocidad') || h.toLowerCase().includes('sintió') || h.toLowerCase().includes('speed') || h.toLowerCase().includes('ritmo'));
+                const factorsHeader = headers.find(h => h.toLowerCase().includes('factor') || h.toLowerCase().includes('afectaron') || h.toLowerCase().includes('frenos'));
+                const obsHeader = headers.find(h => h.toLowerCase().includes('observaci') || h.toLowerCase().includes('comentario') || h.toLowerCase().includes('opinión'));
+
+                if (!speedHeader) { errDiv.innerText = "No se detectó la columna requerida de velocidad."; errDiv.classList.remove('hidden'); return; }
+
+                const responses = data.map((row, index) => {
+                    const rawFactors = row[factorsHeader] || "Ninguno";
+                    let factorsList = rawFactors ? rawFactors.toString().split(/[;,]/).map(f => f.trim()).filter(f => f !== "") : [];
+                    if (factorsList.length === 0) factorsList = ["Ninguno"];
+
+                    let speedValue = (row[speedHeader] || "Adecuada").toString().trim();
+                    if (speedValue.toLowerCase() === "alta") speedValue = "Alta";
+                    else if (speedValue.toLowerCase() === "baja" || speedValue.toLowerCase() === "baja / con retrasos") speedValue = "Baja";
+                    else speedValue = "Adecuada";
+
+                    return {
+                        id: index + 1, anonymousName: `Colaborador Anónimo #${index + 1}`,
+                        speed: speedValue, factors: factorsList, observation: row[obsHeader] || ""
+                    };
+                });
+
+                const lastSprint = state.sprints[state.sprints.length - 1];
+                let nextNumber = 77;
+                if (lastSprint && lastSprint.name) {
+                    const matches = lastSprint.name.match(/\d+/);
+                    if (matches) nextNumber = parseInt(matches[0]) + 1;
+                }
+
+                const newSprintObj = { id: 's' + nextNumber, name: name, period: period, responses: responses };
+
+                const savedCustom = localStorage.getItem('swat_custom_sprints');
+                let customList = savedCustom ? JSON.parse(savedCustom) : [];
+                customList.push(newSprintObj);
+                localStorage.setItem('swat_custom_sprints', JSON.stringify(customList));
+
+                state.sprints = [...DEFAULT_SPRINTS, ...customList].slice(-3);
+                
+                closeUploadModal();
+                handleSprintSelect(newSprintObj.id, newSprintObj.name);
+                showNotification(`¡Exitoso! Se ha integrado el ${name} de forma 100% anónima.`);
+            } catch (err) {
+                errDiv.innerText = "No se pudo procesar el archivo CSV correctamente."; errDiv.classList.remove('hidden');
+            }
+        }
+
+        // Run
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
