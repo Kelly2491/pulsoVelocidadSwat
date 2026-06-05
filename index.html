@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- LIBRERÍA NUEVA: SheetJS para procesar Excel en el navegador -->
+    <!-- SheetJS para procesar Excel en el navegador -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         /* Custom Scrollbar for better UI */
@@ -33,17 +33,33 @@
     <div id="confirmModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up">
             <div class="flex gap-3">
-                <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg shrink-0 h-fit">
-                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                <div class="p-2 bg-rose-500/10 text-rose-400 rounded-lg shrink-0 h-fit">
+                    <i data-lucide="trash-2" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold text-slate-100">Confirmación requerida</h3>
+                    <h3 class="text-sm font-bold text-slate-100">Eliminar Sprint</h3>
                     <p id="confirmMessage" class="text-xs text-slate-400 mt-1"></p>
                 </div>
             </div>
             <div class="flex justify-end gap-3 pt-2">
                 <button onclick="closeConfirmModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200">Cancelar</button>
-                <button id="confirmBtn" class="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-slate-100 rounded-lg">Sí, Confirmar</button>
+                <button id="confirmBtn" class="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-slate-100 rounded-lg transition-colors">Sí, Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADMIN LOGIN -->
+    <div id="adminModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 shadow-2xl animate-scale-up">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="p-2 bg-teal-500/10 text-teal-400 rounded-lg shrink-0"><i data-lucide="lock" class="w-5 h-5"></i></div>
+                <h3 class="text-sm font-bold text-slate-100">Modo Administrador</h3>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Ingresa la contraseña maestra para habilitar la carga y eliminación de Sprints.</p>
+            <input type="password" id="adminPassword" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500 mb-5 shadow-inner" placeholder="Contraseña...">
+            <div class="flex justify-end gap-3">
+                <button onclick="closeAdminModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200">Cancelar</button>
+                <button onclick="loginAdmin()" class="px-5 py-2 text-xs font-bold bg-teal-600 hover:bg-teal-500 text-slate-950 rounded-lg transition-colors">Desbloquear</button>
             </div>
         </div>
     </div>
@@ -85,7 +101,8 @@
                     <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar CSV
                 </button>
 
-                <button onclick="openUploadModal()" class="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-2 border border-emerald-400/30 hover:scale-105 active:scale-95">
+                <!-- BOTÓN OCULTO POR DEFECTO PARA USUARIOS NORMALES -->
+                <button id="btnCargarSprint" onclick="openUploadModal()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md items-center gap-2 border border-emerald-400/30 hover:scale-105 active:scale-95">
                     <i data-lucide="upload" class="w-3.5 h-3.5"></i> Cargar Sprint
                 </button>
             </div>
@@ -129,9 +146,9 @@
                     <div class="flex items-center justify-between mb-6">
                         <div>
                             <h3 class="text-base font-bold text-slate-100">Tendencia de Velocidad Percibida</h3>
-                            <p class="text-xs text-slate-400">Evolución de la moral y velocidad de las últimas 3 iteraciones activas</p>
+                            <p class="text-xs text-slate-400">Evolución de la moral y velocidad de las iteraciones activas</p>
                         </div>
-                        <span class="text-[11px] font-semibold text-teal-400 bg-teal-950/40 border border-teal-500/20 px-2 py-1 rounded hidden sm:inline-block">Ventana de 3 Sprints</span>
+                        <span class="text-[11px] font-semibold text-teal-400 bg-teal-950/40 border border-teal-500/20 px-2 py-1 rounded hidden sm:inline-block">Sprints Consolidado</span>
                     </div>
                     <div id="chartsContainer" class="space-y-6"></div>
                     <div class="mt-6 pt-4 border-t border-slate-800/60 grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
@@ -285,7 +302,7 @@
         </div>
     </main>
 
-    <!-- MODAL DE CARGA (AQUÍ ESTÁ LA NUEVA UI MEJORADA) -->
+    <!-- MODAL DE CARGA -->
     <div id="uploadModal" class="fixed inset-0 z-[150] hidden items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm overflow-y-auto">
         <div class="bg-[#151A2D] border border-slate-700/50 rounded-2xl w-full max-w-[500px] shadow-[0_0_50px_-12px_rgba(16,185,129,0.15)] animate-scale-up my-8">
             
@@ -368,18 +385,26 @@
         </div>
     </div>
 
-    <!-- FOOTER -->
+    <!-- FOOTER CON BOTON DE ADMIN -->
     <footer class="border-t border-slate-900 bg-slate-950 py-6 px-6 mt-auto">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
             <div class="text-center sm:text-left"><span>© 2026 SWAT Velocity Pulse Tracker. Todos los derechos reservados.</span></div>
-            <div class="flex gap-4"><span class="hover:text-slate-400 cursor-pointer">Seguridad</span><span>•</span><span class="hover:text-slate-400 cursor-pointer">Metodología Ágil</span></div>
+            <div class="flex gap-4">
+                <span onclick="toggleAdmin()" id="adminToggleBtn" class="hover:text-slate-300 cursor-pointer flex items-center gap-1 transition-colors" title="Modo Administrador">
+                    <i data-lucide="lock" class="w-3.5 h-3.5"></i> Acceso Admin
+                </span>
+                <span>•</span>
+                <span class="hover:text-slate-400 cursor-pointer">Seguridad</span>
+                <span>•</span>
+                <span class="hover:text-slate-400 cursor-pointer">Metodología Ágil</span>
+            </div>
         </div>
     </footer>
 
     <!-- JAVASCRIPT LOGIC -->
     <script>
-        // DATOS BASE
-        const DEFAULT_SPRINTS = [
+        // DATOS INICIALES (Sprints 74, 75, 76). Se usarán para cargar por primera vez.
+        const INITIAL_SPRINTS = [
             {
                 id: "s74", name: "Sprint 74", period: "Abril 2026",
                 responses: [
@@ -427,24 +452,92 @@
             activeTab: 'dashboard',
             selectedResponse: null,
             rawCSVText: '',
-            uploadedFileName: ''
+            uploadedFileName: '',
+            sprintToDelete: null,
+            isAdmin: sessionStorage.getItem('swat_isAdmin') === 'true' // Guardar sesión de admin temporal
         };
 
         // INICIALIZACIÓN
         function init() {
             lucide.createIcons();
-            const saved = localStorage.getItem('swat_custom_sprints');
+            
+            // Usamos una nueva llave para guardar TODOS los sprints en memoria
+            const saved = localStorage.getItem('swat_all_sprints');
             if (saved) {
                 try {
-                    const parsed = JSON.parse(saved);
-                    state.sprints = [...DEFAULT_SPRINTS, ...parsed].slice(-3);
+                    state.sprints = JSON.parse(saved);
                 } catch (e) {
-                    state.sprints = [...DEFAULT_SPRINTS];
+                    state.sprints = [...INITIAL_SPRINTS];
                 }
             } else {
-                state.sprints = [...DEFAULT_SPRINTS];
+                // Si nunca ha entrado, carga los 3 iniciales y guárdalos
+                state.sprints = [...INITIAL_SPRINTS];
+                localStorage.setItem('swat_all_sprints', JSON.stringify(state.sprints));
             }
+            
+            updateAdminUI();
             renderAll();
+        }
+
+        // --- FUNCIONES DE ADMINISTRADOR ---
+        function toggleAdmin() {
+            if (state.isAdmin) {
+                // Cerrar sesión
+                state.isAdmin = false;
+                sessionStorage.setItem('swat_isAdmin', 'false');
+                updateAdminUI();
+                renderHeaderFilters();
+                showNotification("Modo Administrador desactivado por seguridad.");
+            } else {
+                // Abrir modal de login
+                document.getElementById('adminPassword').value = '';
+                document.getElementById('adminModal').classList.remove('hidden');
+                document.getElementById('adminModal').classList.add('flex');
+                setTimeout(() => document.getElementById('adminPassword').focus(), 100);
+            }
+        }
+
+        function closeAdminModal() {
+            document.getElementById('adminModal').classList.add('hidden');
+            document.getElementById('adminModal').classList.remove('flex');
+        }
+
+        function loginAdmin() {
+            const pass = document.getElementById('adminPassword').value;
+            // Contraseña maestra solicitada
+            if (pass === 'admin2026') {
+                state.isAdmin = true;
+                sessionStorage.setItem('swat_isAdmin', 'true');
+                updateAdminUI();
+                renderHeaderFilters(); // Vuelve a pintar los botones de sprint para agregar la basurita
+                closeAdminModal();
+                showNotification("¡Modo Administrador activado exitosamente!");
+            } else {
+                alert("Contraseña incorrecta. Acceso denegado.");
+            }
+        }
+
+        // Permitir enter en el input de contraseña
+        document.getElementById('adminPassword').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') loginAdmin();
+        });
+
+        function updateAdminUI() {
+            const btnCargar = document.getElementById('btnCargarSprint');
+            const adminToggleBtn = document.getElementById('adminToggleBtn');
+            
+            if (state.isAdmin) {
+                btnCargar.classList.remove('hidden');
+                btnCargar.classList.add('flex');
+                adminToggleBtn.innerHTML = '<i data-lucide="unlock" class="w-3.5 h-3.5"></i> Salir de Admin';
+                adminToggleBtn.classList.add('text-teal-400');
+            } else {
+                btnCargar.classList.add('hidden');
+                btnCargar.classList.remove('flex');
+                adminToggleBtn.innerHTML = '<i data-lucide="lock" class="w-3.5 h-3.5"></i> Acceso Admin';
+                adminToggleBtn.classList.remove('text-teal-400');
+            }
+            lucide.createIcons();
         }
 
         // --- FUNCIONES DE CÁLCULO ---
@@ -552,7 +645,7 @@
                 renderHealthBanner(stats);
                 renderSentimentWidget(filteredResponses);
                 renderResponsesList(filteredResponses);
-                renderResponseDetail(); // detail is part of responses
+                renderResponseDetail(); 
             } else if (state.activeTab === 'analytics') {
                 document.getElementById('view-dashboard').classList.add('hidden');
                 document.getElementById('view-responses').classList.add('hidden');
@@ -569,9 +662,19 @@
             let html = `<button type="button" onclick="handleSprintSelect('all')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-all active:scale-95 cursor-pointer ${state.selectedSprint === 'all' ? 'bg-teal-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">Todos</button>`;
             
             state.sprints.forEach(sprint => {
-                html += `<button type="button" onclick="handleSprintSelect('${sprint.id}', '${sprint.name}')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-all active:scale-95 cursor-pointer ${state.selectedSprint === sprint.id ? 'bg-teal-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">${sprint.name}</button>`;
+                html += `
+                    <div class="flex items-center gap-0">
+                        <button type="button" onclick="handleSprintSelect('${sprint.id}', '${sprint.name}')" class="px-3 py-1.5 text-xs font-medium rounded-md transition-all active:scale-95 cursor-pointer ${state.selectedSprint === sprint.id ? 'bg-teal-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'}">${sprint.name}</button>
+                        ${state.isAdmin ? `
+                            <button type="button" onclick="confirmDeleteSprint('${sprint.id}', '${sprint.name}')" class="p-1.5 ml-0.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors" title="Eliminar este Sprint">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
             });
             container.innerHTML = html;
+            lucide.createIcons();
         }
 
         function renderTabs() {
@@ -587,6 +690,17 @@
         }
 
         function renderHealthBanner(stats) {
+            // Manejo elegante si no hay Sprints cargados en lo absoluto (todos borrados)
+            if (stats.total === 0) {
+                document.getElementById('teamHealthBanner').innerHTML = `
+                    <div class="p-6 bg-slate-900/60 border rounded-xl flex flex-col items-center justify-center border-slate-800/80 shadow-md">
+                        <i data-lucide="database" class="w-10 h-10 text-slate-700 mb-3"></i>
+                        <h4 class="text-sm font-bold uppercase tracking-wide text-slate-400">ESPACIO DE TRABAJO VACÍO</h4>
+                        <p class="text-xs text-slate-500 mt-2 max-w-lg text-center">No hay Sprints cargados en el sistema actualmente. Solicita al administrador que cargue reportes para habilitar las métricas de este dashboard.</p>
+                    </div>`;
+                return;
+            }
+
             const positiveRate = stats.adecuadaPercent + stats.altaPercent;
             const mainBlocker = stats.factors[0];
 
@@ -956,6 +1070,44 @@
             setTab('responses');
         }
 
+        // --- ELIMINAR SPRINTS (Solo Admin) ---
+        function confirmDeleteSprint(sprintId, sprintName) {
+            state.sprintToDelete = sprintId;
+            document.getElementById('confirmMessage').innerHTML = `¿Estás seguro de que deseas eliminar permanentemente los datos del <strong>${sprintName}</strong>? Esta acción no se puede deshacer.`;
+            
+            document.getElementById('confirmBtn').onclick = () => {
+                deleteCustomSprint(state.sprintToDelete);
+                closeConfirmModal();
+            };
+            
+            document.getElementById('confirmModal').classList.remove('hidden');
+            document.getElementById('confirmModal').classList.add('flex');
+        }
+
+        function deleteCustomSprint(sprintId) {
+            // Filtramos el sprint que queremos borrar de nuestro arreglo en memoria
+            state.sprints = state.sprints.filter(s => s.id !== sprintId);
+            
+            // Sobreescribimos el almacenamiento local con el nuevo arreglo limpio
+            localStorage.setItem('swat_all_sprints', JSON.stringify(state.sprints));
+            
+            // Si estábamos viendo justo el sprint que se borró, regresamos a la vista general
+            if (state.selectedSprint === sprintId) {
+                state.selectedSprint = 'all';
+                state.activeTab = 'dashboard';
+            }
+            state.selectedResponse = null;
+            
+            renderAll();
+            showNotification("Sprint eliminado del sistema exitosamente.");
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            document.getElementById('confirmModal').classList.remove('flex');
+            state.sprintToDelete = null;
+        }
+
         // --- EXPORTAR ---
         function exportCSV() {
             try {
@@ -985,7 +1137,7 @@
             }
         }
 
-        // --- NOTIFICACIONES Y MODALES ---
+        // --- NOTIFICACIONES ---
         function showNotification(msg) {
             const toast = document.getElementById('notificationToast');
             document.getElementById('notifMessage').innerText = msg;
@@ -997,29 +1149,11 @@
             toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
         }
 
-        function handleReset() {
-            document.getElementById('confirmMessage').innerText = "¿Estás seguro de que deseas eliminar todos los Sprints cargados de forma manual y regresar a los datos oficiales?";
-            document.getElementById('confirmBtn').onclick = () => {
-                localStorage.removeItem('swat_custom_sprints');
-                state.sprints = [...DEFAULT_SPRINTS];
-                state.selectedSprint = 'all';
-                state.selectedResponse = null;
-                closeConfirmModal();
-                renderAll();
-                showNotification("Dashboard restablecido a los datos de fábrica correctamente.");
-            };
-            document.getElementById('confirmModal').classList.remove('hidden');
-            document.getElementById('confirmModal').classList.add('flex');
-        }
-        function closeConfirmModal() {
-            document.getElementById('confirmModal').classList.add('hidden');
-            document.getElementById('confirmModal').classList.remove('flex');
-        }
-
         // --- LÓGICA DE CARGA DE ARCHIVO MEJORADA ---
         function openUploadModal() {
+            // El identificador se autocompleta basándose en el último sprint cargado (incluso si se borró y quedó vacío arranca en 74)
+            let nextNumber = 74; 
             const lastSprint = state.sprints[state.sprints.length - 1];
-            let nextNumber = 77;
             if (lastSprint && lastSprint.name) {
                 const matches = lastSprint.name.match(/\d+/);
                 if (matches) nextNumber = parseInt(matches[0]) + 1;
@@ -1043,18 +1177,16 @@
         }
 
         function clearUploadFile(e) {
-            if (e) e.stopPropagation(); // Evitar que al dar click en 'eliminar' se abra el explorador
+            if (e) e.stopPropagation(); 
             state.rawCSVText = '';
             state.uploadedFileName = '';
             document.getElementById('fileInput').value = '';
             
-            // Revertir a la vista de "Drag & Drop"
             document.getElementById('uploadPrompt').classList.remove('hidden');
             document.getElementById('uploadPrompt').classList.add('flex');
             document.getElementById('fileInfo').classList.add('hidden');
             document.getElementById('fileInfo').classList.remove('flex');
             
-            // Revertir estilos del borde
             const dropZone = document.getElementById('dropZone');
             dropZone.classList.remove('border-emerald-500/60', 'bg-[#131926]');
             dropZone.classList.add('border-slate-700/80', 'bg-[#0F131F]');
@@ -1063,14 +1195,12 @@
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
 
-        // Clic en la zona abre el input nativo
         dropZone.addEventListener('click', (e) => {
             if (e.target.id !== 'removeFileBtn' && e.target.closest('#removeFileBtn') === null) {
                 fileInput.click();
             }
         });
 
-        // Eventos Drag & Drop
         dropZone.addEventListener('dragover', (e) => { 
             e.preventDefault(); 
             dropZone.classList.add('border-emerald-500/60', 'bg-[#131926]'); 
@@ -1078,7 +1208,7 @@
         });
         dropZone.addEventListener('dragleave', (e) => { 
             e.preventDefault(); 
-            if (!state.uploadedFileName) { // Sólo restaurar si no hay un archivo cargado
+            if (!state.uploadedFileName) {
                 dropZone.classList.remove('border-emerald-500/60', 'bg-[#131926]'); 
                 dropZone.classList.add('border-slate-700/80', 'bg-[#0F131F]');
             }
@@ -1098,20 +1228,18 @@
             if (!['.csv', '.txt', '.xlsx', '.xls'].includes(fileExt)) {
                 errDiv.innerText = "Por favor selecciona un archivo válido (.xlsx, .xls, .csv o .txt)";
                 errDiv.classList.remove('hidden');
-                clearUploadFile(); // Limpiar si es inválido
+                clearUploadFile(); 
                 return;
             }
             errDiv.classList.add('hidden');
             state.uploadedFileName = file.name;
             document.getElementById('uploadedFileName').innerText = file.name;
             
-            // Cambiar a la vista "Archivo Seleccionado"
             document.getElementById('uploadPrompt').classList.add('hidden');
             document.getElementById('uploadPrompt').classList.remove('flex');
             document.getElementById('fileInfo').classList.remove('hidden');
             document.getElementById('fileInfo').classList.add('flex');
             
-            // Asegurar los colores de estado activo
             dropZone.classList.add('border-emerald-500/60', 'bg-[#131926]');
             dropZone.classList.remove('border-slate-700/80', 'bg-[#0F131F]');
 
@@ -1122,10 +1250,8 @@
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, {type: 'array'});
-                        // Tomamos la primera hoja del Excel
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        // Convertimos la hoja a formato CSV internamente para mantener intacta tu lógica de guardado
                         state.rawCSVText = XLSX.utils.sheet_to_csv(worksheet);
                     } catch(error) {
                         errDiv.innerText = "Error al leer el archivo Excel. Verifica que no esté corrupto.";
@@ -1139,7 +1265,6 @@
                 reader.readAsText(file, 'UTF-8');
             }
             
-            // Refrescar íconos de Lucide
             lucide.createIcons();
         }
 
@@ -1177,7 +1302,7 @@
 
             if (!name.trim()) { errDiv.innerText = "Por favor escribe el nombre del sprint."; errDiv.classList.remove('hidden'); return; }
             if (!period.trim()) { errDiv.innerText = "Por favor especifica el periodo de tiempo."; errDiv.classList.remove('hidden'); return; }
-            if (!state.rawCSVText.trim()) { errDiv.innerText = "Por favor selecciona un archivo CSV válido."; errDiv.classList.remove('hidden'); return; }
+            if (!state.rawCSVText.trim()) { errDiv.innerText = "Por favor selecciona un archivo CSV o Excel válido."; errDiv.classList.remove('hidden'); return; }
 
             try {
                 const { headers, data } = parseCSV(state.rawCSVText);
@@ -1204,27 +1329,24 @@
                     };
                 });
 
-                const lastSprint = state.sprints[state.sprints.length - 1];
-                let nextNumber = 77;
-                if (lastSprint && lastSprint.name) {
-                    const matches = lastSprint.name.match(/\d+/);
-                    if (matches) nextNumber = parseInt(matches[0]) + 1;
+                // Calculo la ID basada en el nombre (ej. Sprint 74 -> s74) o uso timestamp
+                let newId = 's_custom_' + Date.now(); 
+                const matches = name.match(/\d+/);
+                if (matches) {
+                    newId = 's' + matches[0];
                 }
 
-                const newSprintObj = { id: 's' + nextNumber, name: name, period: period, responses: responses };
+                const newSprintObj = { id: newId, name: name, period: period, responses: responses };
 
-                const savedCustom = localStorage.getItem('swat_custom_sprints');
-                let customList = savedCustom ? JSON.parse(savedCustom) : [];
-                customList.push(newSprintObj);
-                localStorage.setItem('swat_custom_sprints', JSON.stringify(customList));
-
-                state.sprints = [...DEFAULT_SPRINTS, ...customList].slice(-3);
+                // Almacenamos el sprint en el arreglo principal (ahora SIN limitador slice)
+                state.sprints.push(newSprintObj);
+                localStorage.setItem('swat_all_sprints', JSON.stringify(state.sprints));
                 
                 closeUploadModal();
                 handleSprintSelect(newSprintObj.id, newSprintObj.name);
                 showNotification(`¡Exitoso! Se ha integrado el ${name} de forma 100% anónima.`);
             } catch (err) {
-                errDiv.innerText = "No se pudo procesar el archivo CSV correctamente."; errDiv.classList.remove('hidden');
+                errDiv.innerText = "No se pudo procesar el archivo correctamente."; errDiv.classList.remove('hidden');
             }
         }
 
