@@ -10,6 +10,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- SheetJS para procesar Excel en el navegador -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Supabase (autenticación + base de datos compartida entre equipos) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
         /* Custom Scrollbar for better UI */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -28,6 +30,61 @@
     </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col antialiased selection:bg-teal-500 selection:text-slate-900 overflow-x-hidden">
+
+    <!-- ======================================================================
+         PANTALLA: AUTENTICACIÓN (correo corporativo + enlace mágico)
+         ====================================================================== -->
+    <div id="authGate" class="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950">
+        <div class="w-full max-w-sm space-y-6 animate-fade-in">
+            <div class="text-center space-y-2">
+                <div class="h-12 w-12 mx-auto rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xl shadow-inner">P</div>
+                <h1 class="text-lg font-bold text-slate-100">Pulso de Velocidad</h1>
+                <p class="text-xs text-slate-500">Ingresa con tu correo corporativo para acceder al pulso de tu equipo.</p>
+            </div>
+
+            <div id="authFormWrapper" class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4 shadow-2xl">
+                <div>
+                    <label class="text-[11px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wide">Correo corporativo</label>
+                    <input type="email" id="authEmail" placeholder="nombre@empresa.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500 shadow-inner">
+                </div>
+                <div id="authError" class="hidden p-2.5 bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs rounded-lg font-medium"></div>
+                <div id="authSent" class="hidden p-2.5 bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg font-medium"></div>
+                <button id="authSendBtn" onclick="sendMagicLink()" class="w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-slate-950 font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="mail" class="w-4 h-4"></i> Enviar enlace de acceso
+                </button>
+                <p class="text-[10px] text-slate-600 text-center leading-relaxed">Solo se permiten correos del dominio autorizado por tu organización. Recibirás un enlace de un solo uso en tu bandeja de entrada.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         PANTALLA: SELECCIÓN DE EQUIPO (solo la primera vez que se ingresa)
+         ====================================================================== -->
+    <div id="teamGate" class="fixed inset-0 z-[290] hidden items-center justify-center p-4 bg-slate-950">
+        <div class="w-full max-w-lg space-y-6 animate-fade-in">
+            <div class="text-center space-y-2">
+                <div class="h-12 w-12 mx-auto rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xl shadow-inner"><i data-lucide="users" class="w-6 h-6"></i></div>
+                <h1 class="text-lg font-bold text-slate-100">¿A qué equipo perteneces?</h1>
+                <p class="text-xs text-slate-500">Selecciona tu equipo una sola vez. Solo verás la información de tu equipo. Si te equivocas, pide a un administrador que lo corrija.</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl space-y-5 max-h-[60vh] overflow-y-auto">
+                <div>
+                    <h3 class="text-[11px] font-bold text-teal-400 uppercase tracking-widest mb-2">Equipos Producto</h3>
+                    <div id="teamListProducto" class="grid grid-cols-2 gap-2"></div>
+                </div>
+                <div>
+                    <h3 class="text-[11px] font-bold text-amber-400 uppercase tracking-widest mb-2">Equipos Ingeniería</h3>
+                    <div id="teamListIngenieria" class="grid grid-cols-2 gap-2"></div>
+                </div>
+            </div>
+            <div id="teamGateError" class="hidden p-2.5 bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs rounded-lg font-medium text-center"></div>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         APP PRINCIPAL (oculta hasta autenticar y tener equipo asignado)
+         ====================================================================== -->
+    <div id="appRoot" class="hidden flex-col min-h-screen w-full">
 
     <!-- MODAL DE CONFIRMACIÓN -->
     <div id="confirmModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
@@ -48,18 +105,26 @@
         </div>
     </div>
 
-    <!-- MODAL ADMIN LOGIN -->
-    <div id="adminModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-6 shadow-2xl animate-scale-up">
+    <!-- MODAL: CAMBIO DE EQUIPO (solo admin) -->
+    <div id="adminTeamSwitchModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl animate-scale-up">
             <div class="flex items-center gap-3 mb-4">
-                <div class="p-2 bg-teal-500/10 text-teal-400 rounded-lg shrink-0"><i data-lucide="lock" class="w-5 h-5"></i></div>
-                <h3 class="text-sm font-bold text-slate-100">Modo Administrador</h3>
+                <div class="p-2 bg-teal-500/10 text-teal-400 rounded-lg shrink-0"><i data-lucide="shield" class="w-5 h-5"></i></div>
+                <h3 class="text-sm font-bold text-slate-100">Ver pulso de otro equipo (Admin)</h3>
             </div>
-            <p class="text-xs text-slate-400 mb-4">Ingresa la contraseña maestra para habilitar la carga y eliminación de Sprints.</p>
-            <input type="password" id="adminPassword" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500 mb-5 shadow-inner" placeholder="Contraseña...">
-            <div class="flex justify-end gap-3">
-                <button onclick="closeAdminModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200">Cancelar</button>
-                <button onclick="loginAdmin()" class="px-5 py-2 text-xs font-bold bg-teal-600 hover:bg-teal-500 text-slate-950 rounded-lg transition-colors">Desbloquear</button>
+            <p class="text-xs text-slate-400 mb-4">Como administrador puedes consultar la información de cualquier equipo.</p>
+            <div class="space-y-4 max-h-[50vh] overflow-y-auto">
+                <div>
+                    <h4 class="text-[11px] font-bold text-teal-400 uppercase tracking-widest mb-2">Equipos Producto</h4>
+                    <div id="adminTeamListProducto" class="grid grid-cols-2 gap-2"></div>
+                </div>
+                <div>
+                    <h4 class="text-[11px] font-bold text-amber-400 uppercase tracking-widest mb-2">Equipos Ingeniería</h4>
+                    <div id="adminTeamListIngenieria" class="grid grid-cols-2 gap-2"></div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-4">
+                <button onclick="closeAdminTeamSwitchModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200">Cerrar</button>
             </div>
         </div>
     </div>
@@ -85,7 +150,7 @@
                 <div class="h-10 w-10 rounded-lg bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold shadow-inner">S</div>
                 <div>
                     <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold tracking-widest text-teal-400 uppercase bg-teal-950/80 px-2 py-0.5 rounded border border-teal-500/20">SWAT TEAM</span>
+                        <span id="teamBadge" class="text-xs font-bold tracking-widest text-teal-400 uppercase bg-teal-950/80 px-2 py-0.5 rounded border border-teal-500/20">EQUIPO</span>
                         <span class="text-xs text-slate-400">• Pulso de Velocidad Anónimo</span>
                     </div>
                     <h1 class="text-xl font-bold text-slate-100 tracking-tight mt-0.5">Métrica & Feedback de Desempeño</h1>
@@ -98,6 +163,10 @@
                     <!-- Lista desplegable se inyecta aquí -->
                 </div>
 
+                <a id="btnFeedback" href="#" target="_blank" rel="noopener" class="bg-teal-600 hover:bg-teal-500 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-2 border border-teal-400/30 hover:scale-105 active:scale-95">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Enviar Feedback
+                </a>
+
                 <button onclick="exportCSV()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md flex items-center gap-2 border border-slate-700 hover:scale-105 active:scale-95">
                     <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar CSV
                 </button>
@@ -106,6 +175,22 @@
                 <button id="btnCargarSprint" onclick="openUploadModal()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md items-center gap-2 border border-emerald-400/30 hover:scale-105 active:scale-95">
                     <i data-lucide="upload" class="w-3.5 h-3.5"></i> Cargar Sprint
                 </button>
+
+                <!-- BOTÓN OCULTO POR DEFECTO, SOLO ADMIN -->
+                <button id="btnSwitchTeam" onclick="openAdminTeamSwitchModal()" class="hidden bg-slate-800 hover:bg-slate-700 text-teal-300 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md items-center gap-2 border border-teal-500/30 hover:scale-105 active:scale-95">
+                    <i data-lucide="shield" class="w-3.5 h-3.5"></i> Ver otro equipo
+                </button>
+
+                <!-- USUARIO / LOGOUT -->
+                <div class="flex items-center gap-2 bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2">
+                    <div class="text-right leading-tight">
+                        <div id="userEmailLabel" class="text-[11px] font-bold text-slate-200 truncate max-w-[140px]"></div>
+                        <div id="userRoleLabel" class="text-[9px] text-slate-500 uppercase tracking-wide"></div>
+                    </div>
+                    <button onclick="logout()" title="Cerrar sesión" class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -391,9 +476,7 @@
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
             <div class="text-center sm:text-left"><span>© 2026 SWAT Velocity Pulse Tracker. Todos los derechos reservados.</span></div>
             <div class="flex gap-4">
-                <span onclick="toggleAdmin()" id="adminToggleBtn" class="hover:text-slate-300 cursor-pointer flex items-center gap-1 transition-colors" title="Modo Administrador">
-                    <i data-lucide="lock" class="w-3.5 h-3.5"></i> Acceso Admin
-                </span>
+                <span id="adminStatusBadge" class="hidden items-center gap-1 text-teal-400 font-bold"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Modo Administrador</span>
                 <span>•</span>
                 <span class="hover:text-slate-400 cursor-pointer">Seguridad</span>
                 <span>•</span>
@@ -402,47 +485,29 @@
         </div>
     </footer>
 
+    </div><!-- /#appRoot -->
+
     <!-- JAVASCRIPT LOGIC -->
     <script>
-        // DATOS INICIALES (Sprints 74, 75, 76). Se usarán para cargar por primera vez.
-        const INITIAL_SPRINTS = [
-            {
-                id: "s74", name: "Sprint 74", period: "Abril 2026",
-                responses: [
-                    { id: 1, anonymousName: "Colaborador Anónimo #1", speed: "Adecuada", factors: ["Cambios de alcance", "Dependencias externas"], observation: "Hubo inconsistencias en la documentación adjunta a algunas historias de usuario que generaron confusión y causaron demoras en el cierre de HUs" },
-                    { id: 2, anonymousName: "Colaborador Anónimo #2", speed: "Adecuada", factors: ["Cambios de alcance", "Bloqueos técnicos", "Deuda técnica", "Muchas reuniones"], observation: "El cambio de prioridades dentro del equipo, genera reprocesos al momento de retomar las tareas que fueron detenidas para iniciar con lo nuevo. Esto ralentiza el proceso de desarrollo y es posible que no se logre finalizar nada de lo planeado en el sprint." },
-                    { id: 3, anonymousName: "Colaborador Anónimo #3", speed: "Adecuada", factors: ["Carga excesiva", "Ausencias", "Muchas reuniones"], observation: "" },
-                    { id: 4, anonymousName: "Colaborador Anónimo #4", speed: "Adecuada", factors: ["Curva de aprendizaje", "Movimiento de personas clave", "Cambios de alcance"], observation: "Percibo el pool muy enfocado en la experiencia del equipo técnico" },
-                    { id: 5, anonymousName: "Colaborador Anónimo #5", speed: "Alta", factors: ["Fallas en pruebas"], observation: "Al momento de desplegar en ambiente de test el ajuste del módulo de conducción, el api de drivers tiene un problema de validación con el token" },
-                    { id: 6, anonymousName: "Colaborador Anónimo #6", speed: "Adecuada", factors: ["Muchas reuniones", "Dependencias externas"], observation: "Se avanzó a buen ritmo a pesar de las reuniones de alineación o estimaciones adicionales." },
-                    { id: 7, anonymousName: "Colaborador Anónimo #7", speed: "Adecuada", factors: ["Ninguno"], observation: "Buen ritmo en general" },
-                    { id: 8, anonymousName: "Colaborador Anónimo #8", speed: "Adecuada", factors: ["Bloqueos técnicos"], observation: "Soporte de infraestructura ayudó a resolver de manera oportuna" }
-                ]
-            },
-            {
-                id: "s75", name: "Sprint 75", period: "Mayo 2026 (Inicios)",
-                responses: [
-                    { id: 1, anonymousName: "Colaborador Anónimo #1", speed: "Baja", factors: ["Muchas reuniones", "Ausencias"], observation: "" },
-                    { id: 2, anonymousName: "Colaborador Anónimo #2", speed: "Baja", factors: ["Cambios de alcance", "Muchas reuniones", "Estimaciones de alto nivel"], observation: "En este sprint al momento de retomar las HU se evidenció que no se trabaja de manera continua, ya que se cambiaba de foco en las estimaciones de las personalizaciones de cargo antioquia, tcc y logitrans" },
-                    { id: 3, anonymousName: "Colaborador Anónimo #3", speed: "Adecuada", factors: ["Curva de aprendizaje"], observation: "n/a" },
-                    { id: 4, anonymousName: "Colaborador Anónimo #4", speed: "Adecuada", factors: ["Cambios de alcance", "Fallas en pruebas", "Muchas reuniones"], observation: "El dejar temas detenidos mientras se hacen estimaciones y al volver a retomarlos, es un tiempo que impacta directamente la entrega de valor comprometida en el sprint" },
-                    { id: 5, anonymousName: "Colaborador Anónimo #5", speed: "Adecuada", factors: ["Bloqueos técnicos", "Cambios de alcance", "Dependencias externas", "Curva de aprendizaje"], observation: "N/A" },
-                    { id: 6, anonymousName: "Colaborador Anónimo #6", speed: "Adecuada", factors: ["Muchas reuniones", "Fallas en pruebas"], observation: "ninguna" },
-                    { id: 7, anonymousName: "Colaborador Anónimo #7", speed: "Adecuada", factors: ["Cambios de alcance", "Muchas reuniones"], observation: "Se generaron interrupciones puntuales por prioridades emergentes pero se logró solventar" },
-                    { id: 8, anonymousName: "Colaborador Anónimo #8", speed: "Adecuada", factors: ["Ninguno"], observation: "Ritmo estándar de entrega" }
-                ]
-            },
-            {
-                id: "s76", name: "Sprint 76", period: "Mayo 2026 (Mediados)",
-                responses: [
-                    { id: 1, anonymousName: "Colaborador Anónimo #1", speed: "Adecuada", factors: ["Ninguno"], observation: "El desarrollo del sprint se dio de manera correcta" },
-                    { id: 2, anonymousName: "Colaborador Anónimo #2", speed: "Baja", factors: ["Bloqueos técnicos", "Curva de aprendizaje"], observation: "Siento que al estar trabajando primordialmente en hábitos de conducción para tcc, se impactó al equipo, ya que es un producto legado y que estamos entrando a conocer" },
-                    { id: 3, anonymousName: "Colaborador Anónimo #3", speed: "Adecuada", factors: ["Curva de aprendizaje"], observation: "" },
-                    { id: 4, anonymousName: "Colaborador Anónimo #4", speed: "Adecuada", factors: ["Dependencias externas"], observation: "Faltaron algunas definiciones de diseño al inicio pero se resolvió ágilmente" },
-                    { id: 5, anonymousName: "Colaborador Anónimo #5", speed: "Adecuada", factors: ["Ninguno"], observation: "Buen cierre de sprint, el equipo estuvo bastante concentrado" }
-                ]
-            }
+        // ======================================================================
+        // CONFIGURACIÓN — EDITA ESTOS VALORES SEGÚN TU PROYECTO
+        // ======================================================================
+        const SUPABASE_URL = "https://TU-PROYECTO.supabase.co";       // ⚠️ Reemplaza con la URL de tu proyecto Supabase
+        const SUPABASE_ANON_KEY = "TU-ANON-KEY-PUBLICA";                // ⚠️ Reemplaza con tu "anon public key" (es segura de exponer, la protección real la da RLS)
+        const FEEDBACK_FORM_URL = "https://n8n.satrack.com/webhook/feedback-sprint"; // Formulario de feedback (n8n)
+
+        // Lista de equipos (debe coincidir con la tabla `teams` en Supabase; se usa como respaldo si la consulta falla)
+        const TEAMS_FALLBACK = [
+            { name: "Exploradores", category: "Producto" }, { name: "Rangers", category: "Producto" },
+            { name: "Synecta", category: "Producto" }, { name: "Rocket", category: "Producto" },
+            { name: "Migration Force", category: "Producto" }, { name: "Swat", category: "Producto" },
+            { name: "Sistema de diseño", category: "Producto" },
+            { name: "Maverciks", category: "Ingeniería" }, { name: "Apache", category: "Ingeniería" },
+            { name: "Analitica", category: "Ingeniería" }, { name: "InnovAItors", category: "Ingeniería" },
+            { name: "Mejoramiento", category: "Ingeniería" }, { name: "Tráfico", category: "Ingeniería" }
         ];
+
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // STATE (Modificado para usar un array en selectedSprints)
         let state = {
@@ -456,27 +521,214 @@
             rawCSVText: '',
             uploadedFileName: '',
             sprintToDelete: null,
-            isAdmin: sessionStorage.getItem('swat_isAdmin') === 'true'
+            isAdmin: false,
+            // --- nuevo: sesión / equipo ---
+            user: null,            // usuario autenticado de Supabase
+            profile: null,         // fila de la tabla profiles { id, email, team_id, role }
+            teams: [],             // todos los equipos (tabla teams)
+            viewingTeamId: null,   // equipo cuyo pulso se está viendo actualmente
+            viewingTeamName: ''
         };
 
-        // INICIALIZACIÓN
-        function init() {
+        // ======================================================================
+        // AUTENTICACIÓN
+        // ======================================================================
+        function setAuthError(msg) {
+            const el = document.getElementById('authError');
+            el.innerText = msg;
+            el.classList.toggle('hidden', !msg);
+        }
+
+        async function sendMagicLink() {
+            const email = document.getElementById('authEmail').value.trim();
+            setAuthError('');
+            document.getElementById('authSent').classList.add('hidden');
+            if (!email || !email.includes('@')) { setAuthError('Ingresa un correo válido.'); return; }
+
+            const btn = document.getElementById('authSendBtn');
+            btn.disabled = true; btn.innerText = 'Enviando...';
+
+            const { error } = await supabaseClient.auth.signInWithOtp({
+                email,
+                options: { emailRedirectTo: window.location.origin + window.location.pathname }
+            });
+
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="mail" class="w-4 h-4"></i> Enviar enlace de acceso';
             lucide.createIcons();
-            
-            const saved = localStorage.getItem('swat_all_sprints');
-            if (saved) {
-                try {
-                    state.sprints = JSON.parse(saved);
-                } catch (e) {
-                    state.sprints = [...INITIAL_SPRINTS];
-                }
-            } else {
-                state.sprints = [...INITIAL_SPRINTS];
-                localStorage.setItem('swat_all_sprints', JSON.stringify(state.sprints));
+
+            if (error) {
+                setAuthError('No se pudo enviar el enlace: ' + error.message + '. Verifica que tu correo pertenezca al dominio autorizado.');
+                return;
             }
-            
-            updateAdminUI();
+            document.getElementById('authSent').classList.remove('hidden');
+            document.getElementById('authSent').innerText = 'Revisa tu correo (' + email + ') y haz clic en el enlace de acceso.';
+        }
+
+        async function logout() {
+            await supabaseClient.auth.signOut();
+            window.location.reload();
+        }
+
+        // Se ejecuta cada vez que cambia el estado de sesión (login, magic link, logout)
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+            if (session && session.user) {
+                state.user = session.user;
+                await afterLogin();
+            } else {
+                state.user = null;
+                document.getElementById('appRoot').classList.add('hidden');
+                document.getElementById('teamGate').classList.remove('flex');
+                document.getElementById('teamGate').classList.add('hidden');
+                document.getElementById('authGate').classList.remove('hidden');
+            }
+        });
+
+        async function afterLogin() {
+            document.getElementById('authGate').classList.add('hidden');
+
+            // Carga (o crea) el perfil del usuario
+            let { data: profile, error } = await supabaseClient
+                .from('profiles').select('*').eq('id', state.user.id).maybeSingle();
+
+            if (!profile) {
+                // primer login: el trigger de la BD debería haber creado el perfil;
+                // si no existe aún (carrera de tiempos), lo intentamos crear aquí.
+                const insertRes = await supabaseClient.from('profiles')
+                    .insert({ id: state.user.id, email: state.user.email }).select().maybeSingle();
+                profile = insertRes.data;
+            }
+            state.profile = profile;
+            state.isAdmin = profile && profile.role === 'admin';
+
+            // Carga la lista de equipos
+            const { data: teamsData } = await supabaseClient.from('teams').select('*').order('category').order('name');
+            state.teams = (teamsData && teamsData.length) ? teamsData : TEAMS_FALLBACK.map((t, i) => ({ id: t.name, ...t }));
+
+            if (!profile || !profile.team_id) {
+                showTeamGate();
+                return;
+            }
+
+            const myTeam = state.teams.find(t => t.id === profile.team_id);
+            state.viewingTeamId = profile.team_id;
+            state.viewingTeamName = myTeam ? myTeam.name : 'Mi equipo';
+
+            document.getElementById('teamGate').classList.add('hidden');
+            document.getElementById('teamGate').classList.remove('flex');
+            document.getElementById('appRoot').classList.remove('hidden');
+            document.getElementById('appRoot').classList.add('flex');
+
+            init();
+        }
+
+        // ======================================================================
+        // SELECCIÓN DE EQUIPO (primer ingreso)
+        // ======================================================================
+        function showTeamGate() {
+            const gate = document.getElementById('teamGate');
+            gate.classList.remove('hidden');
+            gate.classList.add('flex');
+
+            const renderList = (containerId, category) => {
+                const el = document.getElementById(containerId);
+                el.innerHTML = state.teams.filter(t => t.category === category).map(t => `
+                    <button onclick="chooseTeam('${t.id}')" class="px-3 py-2.5 text-xs font-semibold rounded-lg border border-slate-700 bg-slate-950 hover:bg-teal-950/40 hover:border-teal-500/50 text-slate-300 hover:text-teal-300 transition-colors text-left">
+                        ${t.name}
+                    </button>`).join('');
+            };
+            renderList('teamListProducto', 'Producto');
+            renderList('teamListIngenieria', 'Ingeniería');
+            lucide.createIcons();
+        }
+
+        async function chooseTeam(teamId) {
+            const errEl = document.getElementById('teamGateError');
+            errEl.classList.add('hidden');
+            const { error } = await supabaseClient.from('profiles').update({ team_id: teamId }).eq('id', state.user.id);
+            if (error) {
+                errEl.innerText = 'No se pudo guardar tu equipo: ' + error.message;
+                errEl.classList.remove('hidden');
+                return;
+            }
+            state.profile.team_id = teamId;
+            await afterLogin();
+        }
+
+        // ======================================================================
+        // ADMIN: VER OTRO EQUIPO
+        // ======================================================================
+        function openAdminTeamSwitchModal() {
+            const renderList = (containerId, category) => {
+                const el = document.getElementById(containerId);
+                el.innerHTML = state.teams.filter(t => t.category === category).map(t => `
+                    <button onclick="switchViewingTeam('${t.id}', '${t.name.replace(/'/g, "\\'")}')" class="px-3 py-2.5 text-xs font-semibold rounded-lg border ${t.id === state.viewingTeamId ? 'border-teal-500/60 bg-teal-950/40 text-teal-300' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'} transition-colors text-left">
+                        ${t.name}
+                    </button>`).join('');
+            };
+            renderList('adminTeamListProducto', 'Producto');
+            renderList('adminTeamListIngenieria', 'Ingeniería');
+            document.getElementById('adminTeamSwitchModal').classList.remove('hidden');
+            document.getElementById('adminTeamSwitchModal').classList.add('flex');
+            lucide.createIcons();
+        }
+        function closeAdminTeamSwitchModal() {
+            document.getElementById('adminTeamSwitchModal').classList.add('hidden');
+            document.getElementById('adminTeamSwitchModal').classList.remove('flex');
+        }
+        async function switchViewingTeam(teamId, teamName) {
+            state.viewingTeamId = teamId;
+            state.viewingTeamName = teamName;
+            closeAdminTeamSwitchModal();
+            showNotification('Viendo el pulso de: ' + teamName);
+            await loadSprintsFromSupabase();
+        }
+
+        // ======================================================================
+        // CARGA DE DATOS (Supabase, reemplaza a localStorage)
+        // ======================================================================
+        async function loadSprintsFromSupabase() {
+            const { data, error } = await supabaseClient
+                .from('sprints')
+                .select('id, name, period, created_at, responses(id, anonymous_name, speed, factors, observation)')
+                .eq('team_id', state.viewingTeamId)
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                console.error(error);
+                showNotification('Error al cargar los sprints: ' + error.message);
+                state.sprints = [];
+            } else {
+                state.sprints = (data || []).map(s => ({
+                    id: s.id, name: s.name, period: s.period,
+                    responses: (s.responses || []).map((r, idx) => ({
+                        id: r.id, anonymousName: r.anonymous_name || `Colaborador Anónimo #${idx + 1}`,
+                        speed: r.speed, factors: r.factors || ['Ninguno'], observation: r.observation || ''
+                    }))
+                }));
+            }
+            state.selectedSprints = ['all'];
+            state.selectedResponse = null;
             renderAll();
+        }
+
+        // INICIALIZACIÓN (llamada una vez el usuario está autenticado y con equipo)
+        async function init() {
+            lucide.createIcons();
+            updateAdminUI();
+
+            const badge = document.getElementById('teamBadge');
+            badge.innerText = state.viewingTeamName.toUpperCase();
+
+            document.getElementById('userEmailLabel').innerText = state.profile.email;
+            document.getElementById('userRoleLabel').innerText = state.isAdmin ? 'Administrador' : state.viewingTeamName;
+
+            const fbUrl = new URL(FEEDBACK_FORM_URL);
+            fbUrl.searchParams.set('team', state.viewingTeamName);
+            fbUrl.searchParams.set('team_id', state.viewingTeamId);
+            document.getElementById('btnFeedback').href = fbUrl.toString();
+
+            await loadSprintsFromSupabase();
         }
 
         // Cierra el menú desplegable si se hace clic fuera de él
@@ -488,58 +740,19 @@
         });
 
         // --- FUNCIONES DE ADMINISTRADOR ---
-        function toggleAdmin() {
-            if (state.isAdmin) {
-                state.isAdmin = false;
-                sessionStorage.setItem('swat_isAdmin', 'false');
-                updateAdminUI();
-                renderHeaderFilters();
-                showNotification("Modo Administrador desactivado por seguridad.");
-            } else {
-                document.getElementById('adminPassword').value = '';
-                document.getElementById('adminModal').classList.remove('hidden');
-                document.getElementById('adminModal').classList.add('flex');
-                setTimeout(() => document.getElementById('adminPassword').focus(), 100);
-            }
-        }
-
-        function closeAdminModal() {
-            document.getElementById('adminModal').classList.add('hidden');
-            document.getElementById('adminModal').classList.remove('flex');
-        }
-
-        function loginAdmin() {
-            const pass = document.getElementById('adminPassword').value;
-            if (pass === 'admin2026') {
-                state.isAdmin = true;
-                sessionStorage.setItem('swat_isAdmin', 'true');
-                updateAdminUI();
-                renderHeaderFilters(); 
-                closeAdminModal();
-                showNotification("¡Modo Administrador activado exitosamente!");
-            } else {
-                alert("Contraseña incorrecta. Acceso denegado.");
-            }
-        }
-
-        document.getElementById('adminPassword').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') loginAdmin();
-        });
-
         function updateAdminUI() {
             const btnCargar = document.getElementById('btnCargarSprint');
-            const adminToggleBtn = document.getElementById('adminToggleBtn');
-            
+            const btnSwitch = document.getElementById('btnSwitchTeam');
+            const adminBadge = document.getElementById('adminStatusBadge');
+
             if (state.isAdmin) {
-                btnCargar.classList.remove('hidden');
-                btnCargar.classList.add('flex');
-                adminToggleBtn.innerHTML = '<i data-lucide="unlock" class="w-3.5 h-3.5"></i> Salir de Admin';
-                adminToggleBtn.classList.add('text-teal-400');
+                btnCargar.classList.remove('hidden'); btnCargar.classList.add('flex');
+                btnSwitch.classList.remove('hidden'); btnSwitch.classList.add('flex');
+                adminBadge.classList.remove('hidden'); adminBadge.classList.add('flex');
             } else {
-                btnCargar.classList.add('hidden');
-                btnCargar.classList.remove('flex');
-                adminToggleBtn.innerHTML = '<i data-lucide="lock" class="w-3.5 h-3.5"></i> Acceso Admin';
-                adminToggleBtn.classList.remove('text-teal-400');
+                btnCargar.classList.add('hidden'); btnCargar.classList.remove('flex');
+                btnSwitch.classList.add('hidden'); btnSwitch.classList.remove('flex');
+                adminBadge.classList.add('hidden'); adminBadge.classList.remove('flex');
             }
             lucide.createIcons();
         }
@@ -1169,9 +1382,13 @@
             document.getElementById('confirmModal').classList.add('flex');
         }
 
-        function deleteCustomSprint(sprintId) {
+        async function deleteCustomSprint(sprintId) {
+            const { error } = await supabaseClient.from('sprints').delete().eq('id', sprintId);
+            if (error) {
+                showNotification('No se pudo eliminar (¿tienes permisos de administrador?): ' + error.message);
+                return;
+            }
             state.sprints = state.sprints.filter(s => s.id !== sprintId);
-            localStorage.setItem('swat_all_sprints', JSON.stringify(state.sprints));
             
             // Si el sprint que borramos estaba seleccionado, lo removemos de la selección
             if (state.selectedSprints.includes(sprintId)) {
@@ -1380,7 +1597,7 @@
             return { headers, data };
         }
 
-        function saveSprint() {
+        async function saveSprint() {
             const name = document.getElementById('uploadSprintName').value;
             const period = document.getElementById('uploadSprintPeriod').value;
             const errDiv = document.getElementById('uploadError');
@@ -1409,35 +1626,39 @@
                     else speedValue = "Adecuada";
 
                     return {
-                        id: index + 1, anonymousName: `Colaborador Anónimo #${index + 1}`,
+                        anonymousName: `Colaborador Anónimo #${index + 1}`,
                         speed: speedValue, factors: factorsList, observation: row[obsHeader] || ""
                     };
                 });
 
-                let newId = 's_custom_' + Date.now(); 
-                const matches = name.match(/\d+/);
-                if (matches) {
-                    newId = 's' + matches[0];
-                }
+                // 1) Crear el sprint en Supabase (queda asociado al equipo que se está viendo)
+                const { data: newSprint, error: sprintErr } = await supabaseClient
+                    .from('sprints')
+                    .insert({ team_id: state.viewingTeamId, name: name, period: period, created_by: state.user.id })
+                    .select().single();
 
-                const newSprintObj = { id: newId, name: name, period: period, responses: responses };
+                if (sprintErr) { errDiv.innerText = "No se pudo crear el sprint: " + sprintErr.message; errDiv.classList.remove('hidden'); return; }
 
-                state.sprints.push(newSprintObj);
-                localStorage.setItem('swat_all_sprints', JSON.stringify(state.sprints));
-                
+                // 2) Insertar las respuestas asociadas
+                const rows = responses.map(r => ({
+                    sprint_id: newSprint.id, team_id: state.viewingTeamId,
+                    anonymous_name: r.anonymousName, speed: r.speed, factors: r.factors, observation: r.observation
+                }));
+                const { error: respErr } = await supabaseClient.from('responses').insert(rows);
+                if (respErr) { errDiv.innerText = "El sprint se creó pero hubo un error cargando respuestas: " + respErr.message; errDiv.classList.remove('hidden'); return; }
+
                 closeUploadModal();
-                
-                // Activar el nuevo sprint automáticamente
-                toggleSprintSelection(newSprintObj.id);
-                
+                await loadSprintsFromSupabase();
+                toggleSprintSelection(newSprint.id);
+
                 showNotification(`¡Exitoso! Se ha integrado el ${name} de forma 100% anónima.`);
             } catch (err) {
                 errDiv.innerText = "No se pudo procesar el archivo correctamente."; errDiv.classList.remove('hidden');
             }
         }
 
-        // Run
-        document.addEventListener('DOMContentLoaded', init);
+        // Run: no llamamos a init() aquí — se dispara desde afterLogin() una vez hay sesión y equipo.
+        document.addEventListener('DOMContentLoaded', () => { lucide.createIcons(); });
     </script>
 </body>
 </html>
