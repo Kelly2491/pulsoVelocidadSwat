@@ -588,15 +588,27 @@
             document.getElementById('authGate').classList.add('hidden');
 
             // Carga (o crea) el perfil del usuario
-            let { data: profile, error } = await supabaseClient
+            let { data: profile, error: selError } = await supabaseClient
                 .from('profiles').select('*').eq('id', state.user.id).maybeSingle();
+
+            if (selError) {
+                console.error('Error cargando perfil:', selError);
+            }
 
             if (!profile) {
                 // primer login: el trigger de la BD debería haber creado el perfil;
-                // si no existe aún (carrera de tiempos), lo intentamos crear aquí.
-                const insertRes = await supabaseClient.from('profiles')
-                    .insert({ id: state.user.id, email: state.user.email }).select().maybeSingle();
-                profile = insertRes.data;
+                // si no existe aún (carrera de tiempos), lo creamos aquí con upsert
+                // (evita el error 409 si la fila ya existiera por otra vía).
+                const { data: upserted, error: upsertErr } = await supabaseClient
+                    .from('profiles')
+                    .upsert({ id: state.user.id, email: state.user.email }, { onConflict: 'id' })
+                    .select().maybeSingle();
+                if (upsertErr) {
+                    console.error('Error creando perfil:', upsertErr);
+                    showNotification('No se pudo cargar tu perfil: ' + upsertErr.message);
+                    return;
+                }
+                profile = upserted;
             }
             state.profile = profile;
             state.isAdmin = profile && profile.role === 'admin';
@@ -645,6 +657,11 @@
         async function chooseTeam(teamId) {
             const errEl = document.getElementById('teamGateError');
             errEl.classList.add('hidden');
+            if (!state.profile) {
+                errEl.innerText = 'No se pudo cargar tu perfil todavía. Espera un momento y recarga la página (Ctrl+Shift+R).';
+                errEl.classList.remove('hidden');
+                return;
+            }
             const { error } = await supabaseClient.from('profiles').update({ team_id: teamId }).eq('id', state.user.id);
             if (error) {
                 errEl.innerText = 'No se pudo guardar tu equipo: ' + error.message;
