@@ -39,10 +39,17 @@
             <div class="text-center space-y-2">
                 <div class="h-12 w-12 mx-auto rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xl shadow-inner">P</div>
                 <h1 class="text-lg font-bold text-slate-100">Pulso de Velocidad</h1>
-                <p class="text-xs text-slate-500">Ingresa con tu correo corporativo para acceder al pulso de tu equipo.</p>
+                <p class="text-xs text-slate-500">Ingresa con tu cuenta corporativa de Microsoft para acceder al pulso de tu equipo.</p>
             </div>
 
             <div id="authFormWrapper" class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4 shadow-2xl">
+                <button id="authMicrosoftBtn" onclick="signInWithMicrosoft()" class="w-full py-2.5 bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-300">
+                    <svg width="16" height="16" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+                    Iniciar sesión con Microsoft
+                </button>
+                <div class="flex items-center gap-3 text-[10px] text-slate-600">
+                    <div class="h-px bg-slate-800 flex-1"></div> o con tu correo (temporal) <div class="h-px bg-slate-800 flex-1"></div>
+                </div>
                 <div>
                     <label class="text-[11px] font-bold text-slate-400 block mb-1.5 uppercase tracking-wide">Correo corporativo</label>
                     <input type="email" id="authEmail" placeholder="nombre@empresa.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-teal-500 shadow-inner">
@@ -64,10 +71,10 @@
         <div class="w-full max-w-lg space-y-6 animate-fade-in">
             <div class="text-center space-y-2">
                 <div class="h-12 w-12 mx-auto rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 font-bold text-xl shadow-inner"><i data-lucide="users" class="w-6 h-6"></i></div>
-                <h1 class="text-lg font-bold text-slate-100">¿A qué equipo perteneces?</h1>
-                <p class="text-xs text-slate-500">Selecciona tu equipo una sola vez. Solo verás la información de tu equipo. Si te equivocas, pide a un administrador que lo corrija.</p>
+                <h1 class="text-lg font-bold text-slate-100">¿A qué equipo(s) perteneces?</h1>
+                <p class="text-xs text-slate-500">Puedes elegir uno o varios si trabajas en más de un equipo. Solo verás la información de los equipos que marques aquí. Esta elección solo se hace una vez; para cambios posteriores pide a un administrador.</p>
             </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl space-y-5 max-h-[60vh] overflow-y-auto">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-2xl space-y-5 max-h-[55vh] overflow-y-auto">
                 <div>
                     <h3 class="text-[11px] font-bold text-teal-400 uppercase tracking-widest mb-2">Equipos Producto</h3>
                     <div id="teamListProducto" class="grid grid-cols-2 gap-2"></div>
@@ -78,6 +85,9 @@
                 </div>
             </div>
             <div id="teamGateError" class="hidden p-2.5 bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs rounded-lg font-medium text-center"></div>
+            <button onclick="confirmTeamSelection()" class="w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-slate-950 font-bold text-xs rounded-lg transition-colors">
+                Confirmar selección
+            </button>
         </div>
     </div>
 
@@ -105,14 +115,14 @@
         </div>
     </div>
 
-    <!-- MODAL: CAMBIO DE EQUIPO (solo admin) -->
+    <!-- MODAL: CAMBIAR DE EQUIPO -->
     <div id="adminTeamSwitchModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl animate-scale-up">
             <div class="flex items-center gap-3 mb-4">
                 <div class="p-2 bg-teal-500/10 text-teal-400 rounded-lg shrink-0"><i data-lucide="shield" class="w-5 h-5"></i></div>
-                <h3 class="text-sm font-bold text-slate-100">Ver pulso de otro equipo (Admin)</h3>
+                <h3 id="teamSwitchModalTitle" class="text-sm font-bold text-slate-100">Cambiar de equipo</h3>
             </div>
-            <p class="text-xs text-slate-400 mb-4">Como administrador puedes consultar la información de cualquier equipo.</p>
+            <p id="teamSwitchModalHint" class="text-xs text-slate-400 mb-4"></p>
             <div class="space-y-4 max-h-[50vh] overflow-y-auto">
                 <div>
                     <h4 class="text-[11px] font-bold text-teal-400 uppercase tracking-widest mb-2">Equipos Producto</h4>
@@ -178,7 +188,7 @@
 
                 <!-- BOTÓN OCULTO POR DEFECTO, SOLO ADMIN -->
                 <button id="btnSwitchTeam" onclick="openAdminTeamSwitchModal()" class="hidden bg-slate-800 hover:bg-slate-700 text-teal-300 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md items-center gap-2 border border-teal-500/30 hover:scale-105 active:scale-95">
-                    <i data-lucide="shield" class="w-3.5 h-3.5"></i> Ver otro equipo
+                    <i data-lucide="repeat" class="w-3.5 h-3.5"></i> Cambiar equipo
                 </button>
 
                 <!-- USUARIO / LOGOUT -->
@@ -524,8 +534,9 @@
             isAdmin: false,
             // --- nuevo: sesión / equipo ---
             user: null,            // usuario autenticado de Supabase
-            profile: null,         // fila de la tabla profiles { id, email, team_id, role }
+            profile: null,         // fila de la tabla profiles { id, email, role }
             teams: [],             // todos los equipos (tabla teams)
+            myTeams: [],           // equipos a los que pertenece esta persona (puede ser varios)
             viewingTeamId: null,   // equipo cuyo pulso se está viendo actualmente
             viewingTeamName: ''
         };
@@ -537,6 +548,21 @@
             const el = document.getElementById('authError');
             el.innerText = msg;
             el.classList.toggle('hidden', !msg);
+        }
+
+        async function signInWithMicrosoft() {
+            setAuthError('');
+            const { error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'azure',
+                options: {
+                    scopes: 'openid profile email',
+                    redirectTo: window.location.origin + window.location.pathname
+                }
+            });
+            if (error) {
+                setAuthError('No se pudo iniciar con Microsoft: ' + error.message);
+            }
+            // Si no hay error, el navegador te redirige a Microsoft automáticamente.
         }
 
         async function sendMagicLink() {
@@ -613,18 +639,26 @@
             state.profile = profile;
             state.isAdmin = profile && profile.role === 'admin';
 
-            // Carga la lista de equipos
+            // Carga la lista completa de equipos (para el picker y para el admin)
             const { data: teamsData } = await supabaseClient.from('teams').select('*').order('category').order('name');
             state.teams = (teamsData && teamsData.length) ? teamsData : TEAMS_FALLBACK.map((t, i) => ({ id: t.name, ...t }));
 
-            if (!profile || !profile.team_id) {
+            // Carga los equipos A LOS QUE PERTENECE esta persona (puede ser más de uno)
+            const { data: myTeamsRows } = await supabaseClient
+                .from('user_teams').select('team_id').eq('user_id', state.user.id);
+            const myTeamIds = (myTeamsRows || []).map(r => r.team_id);
+            state.myTeams = state.teams.filter(t => myTeamIds.includes(t.id));
+
+            if (state.myTeams.length === 0) {
                 showTeamGate();
                 return;
             }
 
-            const myTeam = state.teams.find(t => t.id === profile.team_id);
-            state.viewingTeamId = profile.team_id;
-            state.viewingTeamName = myTeam ? myTeam.name : 'Mi equipo';
+            // Si el equipo que se estaba viendo ya no aplica (o es la primera carga), usa el primero propio
+            if (!state.viewingTeamId || !state.teams.find(t => t.id === state.viewingTeamId)) {
+                state.viewingTeamId = state.myTeams[0].id;
+                state.viewingTeamName = state.myTeams[0].name;
+            }
 
             document.getElementById('teamGate').classList.add('hidden');
             document.getElementById('teamGate').classList.remove('flex');
@@ -635,9 +669,12 @@
         }
 
         // ======================================================================
-        // SELECCIÓN DE EQUIPO (primer ingreso)
+        // SELECCIÓN DE EQUIPO (primer ingreso) — permite marcar varios
         // ======================================================================
+        let teamGateSelection = [];
+
         function showTeamGate() {
+            teamGateSelection = [];
             const gate = document.getElementById('teamGate');
             gate.classList.remove('hidden');
             gate.classList.add('flex');
@@ -645,43 +682,67 @@
             const renderList = (containerId, category) => {
                 const el = document.getElementById(containerId);
                 el.innerHTML = state.teams.filter(t => t.category === category).map(t => `
-                    <button onclick="chooseTeam('${t.id}')" class="px-3 py-2.5 text-xs font-semibold rounded-lg border border-slate-700 bg-slate-950 hover:bg-teal-950/40 hover:border-teal-500/50 text-slate-300 hover:text-teal-300 transition-colors text-left">
+                    <label class="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold rounded-lg border border-slate-700 bg-slate-950 hover:bg-teal-950/40 hover:border-teal-500/50 text-slate-300 hover:text-teal-300 transition-colors cursor-pointer select-none">
+                        <input type="checkbox" value="${t.id}" onchange="toggleTeamGateSelection('${t.id}')" class="accent-teal-500 w-3.5 h-3.5">
                         ${t.name}
-                    </button>`).join('');
+                    </label>`).join('');
             };
             renderList('teamListProducto', 'Producto');
             renderList('teamListIngenieria', 'Ingeniería');
             lucide.createIcons();
         }
 
-        async function chooseTeam(teamId) {
+        function toggleTeamGateSelection(teamId) {
+            const idx = teamGateSelection.indexOf(teamId);
+            if (idx === -1) teamGateSelection.push(teamId); else teamGateSelection.splice(idx, 1);
+        }
+
+        async function confirmTeamSelection() {
             const errEl = document.getElementById('teamGateError');
             errEl.classList.add('hidden');
+
+            if (teamGateSelection.length === 0) {
+                errEl.innerText = 'Marca al menos un equipo antes de continuar.';
+                errEl.classList.remove('hidden');
+                return;
+            }
             if (!state.profile) {
                 errEl.innerText = 'No se pudo cargar tu perfil todavía. Espera un momento y recarga la página (Ctrl+Shift+R).';
                 errEl.classList.remove('hidden');
                 return;
             }
-            const { error } = await supabaseClient.from('profiles').update({ team_id: teamId }).eq('id', state.user.id);
+
+            const rows = teamGateSelection.map(teamId => ({ user_id: state.user.id, team_id: teamId }));
+            const { error } = await supabaseClient.from('user_teams').insert(rows);
             if (error) {
-                errEl.innerText = 'No se pudo guardar tu equipo: ' + error.message;
+                errEl.innerText = 'No se pudo guardar tu(s) equipo(s): ' + error.message;
                 errEl.classList.remove('hidden');
                 return;
             }
-            state.profile.team_id = teamId;
             await afterLogin();
         }
 
         // ======================================================================
-        // ADMIN: VER OTRO EQUIPO
+        // CAMBIAR DE EQUIPO (disponible para admins y para quienes están en 2+ equipos)
         // ======================================================================
         function openAdminTeamSwitchModal() {
+            // El admin puede ver (no necesariamente gestionar) cualquiera de los 13 equipos.
+            // Una persona normal con varios equipos solo ve los suyos.
+            const listToShow = state.isAdmin ? state.teams : state.myTeams;
+            const myTeamIds = state.myTeams.map(t => t.id);
+
+            document.getElementById('teamSwitchModalTitle').innerText = state.isAdmin ? 'Cambiar de equipo (Admin)' : 'Cambiar de equipo';
+            document.getElementById('teamSwitchModalHint').innerText = state.isAdmin
+                ? 'Puedes consultar cualquier equipo. Solo puedes cargar/eliminar sprints en el que te pertenece a ti.'
+                : 'Cambia entre los equipos a los que perteneces.';
+
             const renderList = (containerId, category) => {
                 const el = document.getElementById(containerId);
-                el.innerHTML = state.teams.filter(t => t.category === category).map(t => `
+                const items = listToShow.filter(t => t.category === category);
+                el.innerHTML = items.map(t => `
                     <button onclick="switchViewingTeam('${t.id}', '${t.name.replace(/'/g, "\\'")}')" class="px-3 py-2.5 text-xs font-semibold rounded-lg border ${t.id === state.viewingTeamId ? 'border-teal-500/60 bg-teal-950/40 text-teal-300' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'} transition-colors text-left">
-                        ${t.name}
-                    </button>`).join('');
+                        ${t.name}${myTeamIds.includes(t.id) && state.isAdmin ? ' <span class="text-[9px] text-teal-500">(tu equipo)</span>' : ''}
+                    </button>`).join('') || '<p class="text-xs text-slate-600 col-span-2">No hay equipos en esta categoría.</p>';
             };
             renderList('adminTeamListProducto', 'Producto');
             renderList('adminTeamListIngenieria', 'Ingeniería');
@@ -698,7 +759,13 @@
             state.viewingTeamName = teamName;
             closeAdminTeamSwitchModal();
             showNotification('Viendo el pulso de: ' + teamName);
-            await loadSprintsFromSupabase();
+            init();
+        }
+
+        // ¿Puede la persona cargar/eliminar sprints en el equipo que está viendo ahora?
+        // (Un admin solo gestiona su(s) propio(s) equipo(s); ver otros es de solo lectura.)
+        function canManageCurrentTeam() {
+            return state.isAdmin && state.myTeams.some(t => t.id === state.viewingTeamId);
         }
 
         // ======================================================================
@@ -738,7 +805,8 @@
             badge.innerText = state.viewingTeamName.toUpperCase();
 
             document.getElementById('userEmailLabel').innerText = state.profile.email;
-            document.getElementById('userRoleLabel').innerText = state.isAdmin ? 'Administrador' : state.viewingTeamName;
+            const roleLabel = state.isAdmin ? 'Administrador' : (state.myTeams.length > 1 ? 'Viendo: ' + state.viewingTeamName : state.viewingTeamName);
+            document.getElementById('userRoleLabel').innerText = roleLabel;
 
             const fbUrl = new URL(FEEDBACK_FORM_URL);
             fbUrl.searchParams.set('team', state.viewingTeamName);
@@ -756,19 +824,29 @@
             }
         });
 
-        // --- FUNCIONES DE ADMINISTRADOR ---
+        // --- FUNCIONES DE ADMINISTRADOR / PERMISOS ---
         function updateAdminUI() {
             const btnCargar = document.getElementById('btnCargarSprint');
             const btnSwitch = document.getElementById('btnSwitchTeam');
             const adminBadge = document.getElementById('adminStatusBadge');
+            const canManage = canManageCurrentTeam();
 
-            if (state.isAdmin) {
+            if (canManage) {
                 btnCargar.classList.remove('hidden'); btnCargar.classList.add('flex');
-                btnSwitch.classList.remove('hidden'); btnSwitch.classList.add('flex');
-                adminBadge.classList.remove('hidden'); adminBadge.classList.add('flex');
             } else {
                 btnCargar.classList.add('hidden'); btnCargar.classList.remove('flex');
+            }
+
+            // El botón "Cambiar equipo" aparece si eres admin, o si perteneces a más de un equipo
+            if (state.isAdmin || state.myTeams.length > 1) {
+                btnSwitch.classList.remove('hidden'); btnSwitch.classList.add('flex');
+            } else {
                 btnSwitch.classList.add('hidden'); btnSwitch.classList.remove('flex');
+            }
+
+            if (state.isAdmin) {
+                adminBadge.classList.remove('hidden'); adminBadge.classList.add('flex');
+            } else {
                 adminBadge.classList.add('hidden'); adminBadge.classList.remove('flex');
             }
             lucide.createIcons();
