@@ -379,61 +379,20 @@
                 
                 <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-6">
                     <h3 class="text-base font-bold text-slate-100 mb-2">Diagnóstico de Impedimentos Frecuentes</h3>
-                    <p class="text-xs text-slate-400 mb-6">Frecuencia agregada de factores ralentizadores identificados en Sprints activos.</p>
-                    <div class="space-y-4">
-                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span><span class="text-xs font-bold text-slate-200">Reuniones Excesivas / Estimaciones</span></div>
-                                <span class="text-xs text-amber-400 font-bold self-start sm:self-auto ml-4 sm:ml-0">Crítico</span>
-                            </div>
-                            <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">
-                                El cambio continuo de foco para estimaciones complejas genera un patrón de intermitencia de foco técnico.
-                            </p>
-                        </div>
-                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span><span class="text-xs font-bold text-slate-200">Cambios de Alcance / Prioridades</span></div>
-                                <span class="text-xs text-amber-400 font-bold self-start sm:self-auto ml-4 sm:ml-0">Alto</span>
-                            </div>
-                            <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">
-                                El cambio de prioridades a mitad de desarrollo genera un reproceso que frena la cadencia continua. Al retomar tareas pendientes, la curva de re-adaptación ralentiza los tiempos.
-                            </p>
-                        </div>
-                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span><span class="text-xs font-bold text-slate-200">Curva de Aprendizaje (Código Legado)</span></div>
-                                <span class="text-xs text-teal-400 font-bold self-start sm:self-auto ml-4 sm:ml-0">Medio</span>
-                            </div>
-                            <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">
-                                La inmersión en productos heredados demanda más tiempo del previsto para que el equipo SWAT asimile el contexto técnico.
-                            </p>
-                        </div>
-                    </div>
+                    <p class="text-xs text-slate-400 mb-6">Frecuencia agregada de factores ralentizadores identificados en los Sprints seleccionados.</p>
+                    <div id="impedimentsContainer" class="space-y-4"></div>
                 </div>
 
                 <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-6 flex flex-col justify-between">
                     <div>
                         <h3 class="text-base font-bold text-slate-100 mb-2">Plan de Estabilización Propuesto</h3>
                         <p class="text-xs text-slate-400 mb-6">Acciones sugeridas de Scrum Master y Product Owner para reducir las fricciones reportadas.</p>
-                        <div class="space-y-4">
-                            <div class="flex gap-3">
-                                <div class="h-6 w-6 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs shrink-0">1</div>
-                                <div><h4 class="text-xs font-bold text-slate-200">Blindar el Foco del Sprint</h4><p class="text-xs text-slate-400 mt-0.5">Establecer política de no-interrupción para estimaciones durante el sprint. Concentrarlas en Refinamiento.</p></div>
-                            </div>
-                            <div class="flex gap-3">
-                                <div class="h-6 w-6 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs shrink-0">2</div>
-                                <div><h4 class="text-xs font-bold text-slate-200">Refinar Definición de Listo (DoR)</h4><p class="text-xs text-slate-400 mt-0.5">Asegurar que toda historia posea criterios de aceptación claros y documentación antes de ingresar al backlog de planeación.</p></div>
-                            </div>
-                            <div class="flex gap-3">
-                                <div class="h-6 w-6 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs shrink-0">3</div>
-                                <div><h4 class="text-xs font-bold text-slate-200">Mitigación de Código Legado</h4><p class="text-xs text-slate-400 mt-0.5">Asignar sesiones de Pair Programming o transferencia técnica al abordar productos legados complejos.</p></div>
-                            </div>
-                        </div>
+                        <div id="stabilizationPlanContainer" class="space-y-4"></div>
                     </div>
                     <div class="mt-8 pt-4 border-t border-slate-800/60 p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span class="text-xs text-slate-400">Estado del equipo:</span><strong class="text-xs text-emerald-400">Activo</strong>
+                            <span id="teamStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span class="text-xs text-slate-400">Estado del equipo:</span><strong id="teamStatusLabel" class="text-xs text-emerald-400">Activo</strong>
                         </div>
                         <button onclick="setTab('dashboard')" class="text-xs text-teal-400 hover:text-teal-300 font-semibold">Volver al Dashboard</button>
                     </div>
@@ -1156,9 +1115,85 @@
                 document.getElementById('view-responses').classList.add('hidden');
                 document.getElementById('view-analytics').classList.remove('hidden');
                 renderHealthBanner(stats);
+                renderFrictionAnalysis(stats);
             }
             
             lucide.createIcons();
+        }
+
+        // ======================================================================
+        // ANÁLISIS DE FRICCIONES (basado en datos reales, no en texto fijo)
+        // ======================================================================
+        const FACTOR_INFO = {
+            "Muchas reuniones": { desc: "El tiempo dedicado a reuniones y estimaciones reduce las horas disponibles de desarrollo continuo.", action: "Auditar el calendario del equipo y consolidar ceremonias para proteger bloques ininterrumpidos de trabajo (Deep Work)." },
+            "Reuniones Excesivas / Estimaciones": { desc: "El cambio continuo de foco para estimaciones complejas genera un patrón de intermitencia de foco técnico.", action: "Establecer una política de no-interrupción para estimaciones durante el sprint; concentrarlas en Refinamiento." },
+            "Cambios de alcance": { desc: "El cambio de prioridades a mitad de desarrollo genera reprocesos que frenan la cadencia continua.", action: "Congelar el alcance una vez iniciado el sprint; canalizar cambios urgentes a través de un proceso formal de excepción." },
+            "Historias poco claras": { desc: "La falta de claridad en los criterios de aceptación genera retrabajo e interpretaciones distintas dentro del equipo.", action: "Refinar la Definición de Listo (DoR): exigir criterios de aceptación claros y documentación antes de entrar al backlog de planeación." },
+            "Falta de backlog": { desc: "La ausencia de historias refinadas y listas obliga a improvisar o esperar durante el sprint.", action: "Reservar tiempo fijo semanal de refinamiento para mantener 1-2 sprints de backlog siempre listos." },
+            "Bloqueos técnicos": { desc: "Impedimentos técnicos sin resolver detienen el avance de una o más historias durante el sprint.", action: "Habilitar un canal de escalamiento rápido con soporte técnico/infraestructura para destrabar en el mismo día." },
+            "Dependencias externas": { desc: "El equipo depende de otros equipos, proveedores o sistemas externos para poder avanzar, generando tiempos muertos.", action: "Mapear dependencias externas desde la planeación del sprint y sincronizar entregas con los equipos/proveedores involucrados." },
+            "Deuda técnica": { desc: "Código o arquitectura heredada obliga a invertir tiempo adicional no planeado para poder avanzar con seguridad.", action: "Asignar un porcentaje fijo de capacidad por sprint para pagar deuda técnica de forma incremental." },
+            "Curva de aprendizaje": { desc: "La inmersión en productos, código o herramientas nuevas demanda más tiempo del previsto para asimilar el contexto técnico.", action: "Asignar sesiones de Pair Programming o transferencia técnica al abordar productos o módulos complejos/legados." },
+            "Movimiento de personas clave": { desc: "La salida, ingreso o reasignación de integrantes clave impacta el ritmo por pérdida de contexto o capacidad.", action: "Documentar decisiones y contexto crítico de forma continua para reducir el impacto de movimientos de personal." },
+            "Fallas en pruebas": { desc: "Errores detectados durante pruebas obligan a ciclos adicionales de corrección antes de poder cerrar historias.", action: "Reforzar pruebas tempranas (shift-left testing) y criterios de aceptación verificables antes de desarrollo." },
+            "Fallas en producción": { desc: "Incidentes en producción desvían capacidad del sprint hacia atención de urgencias no planeadas.", action: "Reservar una porción fija de capacidad para atención de incidentes, separada de los compromisos del sprint." },
+            "Carga excesiva": { desc: "Los integrantes no cuentan con dedicación completa o suficiente al equipo, afectando la capacidad real disponible.", action: "Revisar y ajustar la capacidad planeada del sprint según la dedicación real de cada integrante." },
+            "Ausencias": { desc: "Ausencias (vacaciones, incapacidades, etc.) de integrantes reducen la capacidad efectiva del equipo durante el sprint.", action: "Planear la capacidad del sprint considerando ausencias conocidas con anticipación." },
+            "Estimaciones de alto nivel": { desc: "Estimaciones poco profundas generan desajustes entre lo planeado y lo realmente ejecutable en el sprint.", action: "Dedicar tiempo de refinamiento técnico antes de comprometer estimaciones de alto nivel." }
+        };
+
+        function getFactorInfo(name) {
+            return FACTOR_INFO[name] || { desc: `Factor reportado por el equipo con impacto recurrente en la velocidad de entrega.`, action: `Conversar con el equipo en la próxima retrospectiva para entender la causa raíz de "${name}" y definir un plan concreto.` };
+        }
+
+        function renderFrictionAnalysis(stats) {
+            const impedContainer = document.getElementById('impedimentsContainer');
+            const planContainer = document.getElementById('stabilizationPlanContainer');
+            const relevantFactors = stats.factors.filter(f => f.name !== 'Ninguno' && f.name !== 'Ninguna');
+
+            if (relevantFactors.length === 0) {
+                impedContainer.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">No hay suficientes datos de fricciones reportadas en los sprints seleccionados.</p>`;
+                planContainer.innerHTML = `<p class="text-xs text-slate-500">Aún no hay suficientes datos para sugerir un plan de estabilización. Se generará automáticamente cuando existan reportes con factores de fricción.</p>`;
+            } else {
+                impedContainer.innerHTML = relevantFactors.slice(0, 6).map(f => {
+                    const info = getFactorInfo(f.name);
+                    let severity, severityColor, dotColor;
+                    if (f.percentage >= 25) { severity = 'Crítico'; severityColor = 'text-rose-400'; dotColor = 'bg-rose-500'; }
+                    else if (f.percentage >= 15) { severity = 'Alto'; severityColor = 'text-amber-400'; dotColor = 'bg-amber-500'; }
+                    else if (f.percentage >= 5) { severity = 'Medio'; severityColor = 'text-teal-400'; dotColor = 'bg-teal-500'; }
+                    else { severity = 'Bajo'; severityColor = 'text-slate-400'; dotColor = 'bg-slate-500'; }
+                    return `
+                        <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full ${dotColor} shrink-0"></span><span class="text-xs font-bold text-slate-200">${f.name}</span></div>
+                                <span class="text-xs ${severityColor} font-bold self-start sm:self-auto ml-4 sm:ml-0">${severity} · ${f.percentage}%</span>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">${info.desc}</p>
+                        </div>`;
+                }).join('');
+
+                planContainer.innerHTML = relevantFactors.slice(0, 3).map((f, i) => {
+                    const info = getFactorInfo(f.name);
+                    return `
+                        <div class="flex gap-3">
+                            <div class="h-6 w-6 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 font-bold text-xs shrink-0">${i + 1}</div>
+                            <div><h4 class="text-xs font-bold text-slate-200">${f.name}</h4><p class="text-xs text-slate-400 mt-0.5">${info.action}</p></div>
+                        </div>`;
+                }).join('');
+            }
+
+            const statusDot = document.getElementById('teamStatusDot');
+            const statusLabel = document.getElementById('teamStatusLabel');
+            if (stats.total === 0) {
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+                statusLabel.className = 'text-xs text-slate-400'; statusLabel.innerText = 'Sin datos';
+            } else if (stats.alertaPercent >= 40) {
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-400 animate-pulse';
+                statusLabel.className = 'text-xs text-rose-400'; statusLabel.innerText = 'En riesgo';
+            } else {
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+                statusLabel.className = 'text-xs text-emerald-400'; statusLabel.innerText = 'Activo';
+            }
         }
 
         // --- COMPONENTES UI (Modificados para Dropdown Múltiple) ---
