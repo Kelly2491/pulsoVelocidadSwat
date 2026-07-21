@@ -174,7 +174,22 @@
         </div>
     </div>
 
-    <!-- NOTIFICACIÓN (TOAST) -->
+    <!-- MODAL: COMPARATIVO DE EQUIPOS (solo admin) -->
+    <div id="teamComparisonModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full p-6 shadow-2xl animate-scale-up">
+            <div class="flex items-center gap-3 mb-1">
+                <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg shrink-0"><i data-lucide="bar-chart-3" class="w-5 h-5"></i></div>
+                <h3 class="text-sm font-bold text-slate-100">Comparativo de Equipos</h3>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Ordenado de mayor a menor riesgo (% de respuestas en Baja o Muy baja), con todos los sprints registrados.</p>
+            <div id="teamComparisonContent" class="max-h-[55vh] overflow-y-auto space-y-1.5">
+                <p class="text-xs text-slate-500 text-center py-6">Cargando datos de todos los equipos...</p>
+            </div>
+            <div class="flex justify-end gap-3 pt-4">
+                <button onclick="closeTeamComparisonModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200">Cerrar</button>
+            </div>
+        </div>
+    </div>
     <div id="notificationToast" class="fixed bottom-5 right-5 z-[200] max-w-sm w-full bg-slate-900 border rounded-xl p-4 shadow-2xl flex items-start gap-3 border-emerald-500/50 transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none">
         <div id="notifIconWrapper" class="p-1 rounded-lg bg-emerald-500/10 text-emerald-400">
             <i data-lucide="check-circle" class="w-5 h-5"></i>
@@ -224,6 +239,10 @@
                 <!-- BOTÓN OCULTO POR DEFECTO, SOLO ADMIN -->
                 <button id="btnSwitchTeam" onclick="openAdminTeamSwitchModal()" class="hidden bg-slate-800 hover:bg-slate-700 text-teal-300 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md items-center gap-2 border border-teal-500/30 hover:scale-105 active:scale-95">
                     <i data-lucide="repeat" class="w-3.5 h-3.5"></i> Cambiar equipo
+                </button>
+
+                <button id="btnCompareTeams" onclick="openTeamComparisonModal()" class="hidden bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 font-extrabold text-xs px-3.5 py-2.5 rounded-lg transition-all shadow-md items-center gap-2 border border-amber-500/30 hover:scale-105 active:scale-95">
+                    <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Comparar equipos
                 </button>
 
                 <!-- Solo visible en modo de prueba: volver a la pantalla de tokens -->
@@ -853,6 +872,66 @@
             init();
         }
 
+        // ======================================================================
+        // COMPARATIVO DE EQUIPOS (admin) — riesgo relativo entre los 13 equipos
+        // ======================================================================
+        async function openTeamComparisonModal() {
+            document.getElementById('teamComparisonModal').classList.remove('hidden');
+            document.getElementById('teamComparisonModal').classList.add('flex');
+            const content = document.getElementById('teamComparisonContent');
+            content.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">Cargando datos de todos los equipos...</p>`;
+
+            const { data, error } = await supabaseClient.from('responses').select('team_id, speed');
+            if (error) {
+                content.innerHTML = `<p class="text-xs text-rose-400 text-center py-6">Error al cargar: ${error.message}</p>`;
+                return;
+            }
+
+            const byTeam = {};
+            (data || []).forEach(r => {
+                if (!byTeam[r.team_id]) byTeam[r.team_id] = { total: 0, alert: 0, positive: 0 };
+                byTeam[r.team_id].total++;
+                if (r.speed === 'Baja' || r.speed === 'Muy baja') byTeam[r.team_id].alert++;
+                if (r.speed === 'Alta' || r.speed === 'Muy alta') byTeam[r.team_id].positive++;
+            });
+
+            const rows = state.teams.map(t => {
+                const s = byTeam[t.id] || { total: 0, alert: 0, positive: 0 };
+                const alertPct = s.total > 0 ? Math.round((s.alert / s.total) * 100) : 0;
+                const positivePct = s.total > 0 ? Math.round((s.positive / s.total) * 100) : 0;
+                return { ...t, total: s.total, alertPct, positivePct };
+            }).sort((a, b) => b.alertPct - a.alertPct || b.total - a.total);
+
+            content.innerHTML = rows.map(t => {
+                let statusColor, statusLabel, statusDot;
+                if (t.total === 0) { statusColor = 'text-slate-500'; statusLabel = 'Sin datos'; statusDot = 'bg-slate-600'; }
+                else if (t.alertPct >= 40) { statusColor = 'text-rose-400'; statusLabel = 'En riesgo'; statusDot = 'bg-rose-400'; }
+                else if (t.alertPct >= 20) { statusColor = 'text-amber-400'; statusLabel = 'Precaución'; statusDot = 'bg-amber-400'; }
+                else { statusColor = 'text-emerald-400'; statusLabel = 'Estable'; statusDot = 'bg-emerald-400'; }
+
+                return `
+                    <button onclick="switchViewingTeam('${t.id}', '${t.name.replace(/'/g, "\\'")}'); closeTeamComparisonModal();" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-slate-800 bg-slate-950 hover:border-slate-700 hover:bg-slate-900 transition-colors text-left">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-2 h-2 rounded-full ${statusDot} shrink-0"></span>
+                            <span class="text-xs font-bold text-slate-200 truncate">${t.name}</span>
+                            <span class="text-[10px] text-slate-500 shrink-0 hidden sm:inline">(${t.category})</span>
+                        </div>
+                        <div class="flex items-center gap-3 sm:gap-4 shrink-0 text-[11px]">
+                            <span class="text-slate-500">${t.total} resp.</span>
+                            <span class="text-emerald-400 font-semibold hidden sm:inline">${t.positivePct}% pos.</span>
+                            <span class="text-rose-400 font-semibold">${t.alertPct}% alerta</span>
+                            <span class="${statusColor} font-bold w-16 sm:w-20 text-right">${statusLabel}</span>
+                        </div>
+                    </button>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function closeTeamComparisonModal() {
+            document.getElementById('teamComparisonModal').classList.add('hidden');
+            document.getElementById('teamComparisonModal').classList.remove('flex');
+        }
+
         // ¿Puede la persona cargar/eliminar sprints en el equipo que está viendo ahora?
         // (Un admin solo gestiona su(s) propio(s) equipo(s); ver otros es de solo lectura.)
         function canManageCurrentTeam() {
@@ -971,6 +1050,13 @@
                 btnSwitch.classList.add('hidden'); btnSwitch.classList.remove('flex');
             }
 
+            const btnCompare = document.getElementById('btnCompareTeams');
+            if (state.isAdmin) {
+                btnCompare.classList.remove('hidden'); btnCompare.classList.add('flex');
+            } else {
+                btnCompare.classList.add('hidden'); btnCompare.classList.remove('flex');
+            }
+
             if (state.isAdmin) {
                 adminBadge.classList.remove('hidden'); adminBadge.classList.add('flex');
             } else {
@@ -1041,17 +1127,20 @@
         function getStats() {
             const counts = { 'Muy baja': 0, 'Baja': 0, 'Adecuada': 0, 'Alta': 0, 'Muy alta': 0 };
             let total = 0;
-            const factorCounts = {};
+            const factorCounts = {}; // { name: { count, alertCount } }
 
             state.sprints.forEach(sprint => {
                 if (state.selectedSprints.includes('all') || state.selectedSprints.includes(sprint.id)) {
                     sprint.responses.forEach(resp => {
                         total++;
                         if (counts.hasOwnProperty(resp.speed)) counts[resp.speed]++;
+                        const isAlertSpeed = (resp.speed === 'Baja' || resp.speed === 'Muy baja');
 
                         resp.factors.forEach(f => {
                             if (f !== "Ninguno" && f !== "Ninguna" && f !== "") {
-                                factorCounts[f] = (factorCounts[f] || 0) + 1;
+                                if (!factorCounts[f]) factorCounts[f] = { count: 0, alertCount: 0 };
+                                factorCounts[f].count++;
+                                if (isAlertSpeed) factorCounts[f].alertCount++;
                             }
                         });
                     });
@@ -1059,8 +1148,12 @@
             });
 
             const sortedFactors = Object.keys(factorCounts).map(name => ({
-                name, count: factorCounts[name], percentage: total > 0 ? Math.round((factorCounts[name] / total) * 100) : 0
-            })).sort((a, b) => b.count - a.count);
+                name, count: factorCounts[name].count,
+                percentage: total > 0 ? Math.round((factorCounts[name].count / total) * 100) : 0,
+                // de las respuestas que mencionan este factor, ¿qué % tuvo velocidad Baja o Muy baja?
+                alertRate: factorCounts[name].count > 0 ? Math.round((factorCounts[name].alertCount / factorCounts[name].count) * 100) : 0
+            })).sort((a, b) => b.count - a.count)
+              .map((f, i) => ({ ...f, rank: i })); // posición en el ranking (0 = más frecuente)
 
             const pct = (n) => total > 0 ? Math.round((n / total) * 100) : 0;
             const positivo = counts['Alta'] + counts['Muy alta'];
@@ -1080,6 +1173,28 @@
                 sostenible, sosteniblePercent: pct(sostenible),
                 factors: sortedFactors
             };
+        }
+
+        // Tendencia entre los dos sprints más recientes del equipo (independiente del filtro activo)
+        function getSprintTrend() {
+            if (state.sprints.length < 2) return null;
+            const ordered = [...state.sprints]; // ya vienen ordenados por created_at ascendente
+            const prev = ordered[ordered.length - 2];
+            const curr = ordered[ordered.length - 1];
+
+            const alertPct = (sprint) => {
+                const total = sprint.responses.length;
+                if (total === 0) return null;
+                const alert = sprint.responses.filter(r => r.speed === 'Baja' || r.speed === 'Muy baja').length;
+                return Math.round((alert / total) * 100);
+            };
+
+            const prevPct = alertPct(prev);
+            const currPct = alertPct(curr);
+            if (prevPct === null || currPct === null) return null;
+
+            const delta = currPct - prevPct;
+            return { prevName: prev.name, currName: curr.name, prevPct, currPct, delta };
         }
 
         // --- RENDERIZADO PRINCIPAL ---
@@ -1155,13 +1270,19 @@
                 impedContainer.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">No hay suficientes datos de fricciones reportadas en los sprints seleccionados.</p>`;
                 planContainer.innerHTML = `<p class="text-xs text-slate-500">Aún no hay suficientes datos para sugerir un plan de estabilización. Se generará automáticamente cuando existan reportes con factores de fricción.</p>`;
             } else {
-                impedContainer.innerHTML = relevantFactors.slice(0, 6).map(f => {
+                impedContainer.innerHTML = relevantFactors.slice(0, 6).map((f) => {
                     const info = getFactorInfo(f.name);
+                    // Severidad relativa: posición en el ranking + que el % sea mínimamente relevante (≥10%)
                     let severity, severityColor, dotColor;
-                    if (f.percentage >= 25) { severity = 'Crítico'; severityColor = 'text-rose-400'; dotColor = 'bg-rose-500'; }
-                    else if (f.percentage >= 15) { severity = 'Alto'; severityColor = 'text-amber-400'; dotColor = 'bg-amber-500'; }
-                    else if (f.percentage >= 5) { severity = 'Medio'; severityColor = 'text-teal-400'; dotColor = 'bg-teal-500'; }
-                    else { severity = 'Bajo'; severityColor = 'text-slate-400'; dotColor = 'bg-slate-500'; }
+                    if (f.percentage < 10) { severity = 'Bajo'; severityColor = 'text-slate-400'; dotColor = 'bg-slate-500'; }
+                    else if (f.rank <= 1) { severity = 'Crítico'; severityColor = 'text-rose-400'; dotColor = 'bg-rose-500'; }
+                    else if (f.rank <= 3) { severity = 'Alto'; severityColor = 'text-amber-400'; dotColor = 'bg-amber-500'; }
+                    else { severity = 'Medio'; severityColor = 'text-teal-400'; dotColor = 'bg-teal-500'; }
+
+                    const alertHint = f.alertRate >= 50
+                        ? `<span class="text-rose-400 font-semibold">${f.alertRate}% de esas respuestas fueron Baja o Muy baja</span>`
+                        : `<span class="text-slate-500">${f.alertRate}% de esas respuestas fueron Baja o Muy baja</span>`;
+
                     return `
                         <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1169,6 +1290,7 @@
                                 <span class="text-xs ${severityColor} font-bold self-start sm:self-auto ml-4 sm:ml-0">${severity} · ${f.percentage}%</span>
                             </div>
                             <p class="text-xs text-slate-400 leading-relaxed ml-4.5 sm:ml-0">${info.desc}</p>
+                            <p class="text-[11px] leading-relaxed ml-4.5 sm:ml-0">${alertHint}</p>
                         </div>`;
                 }).join('');
 
@@ -1393,6 +1515,18 @@
                 else suggestion = "Programar una retrospectiva enfocada en la causa raíz de este factor particular para encontrar soluciones conjuntas.";
             }
 
+            const trend = getSprintTrend();
+            let trendHtml = '';
+            if (trend) {
+                if (trend.delta > 3) {
+                    trendHtml = `<br>📈 <span class="font-bold text-slate-200">Tendencia:</span> <span class="text-rose-400 font-semibold">empeoró ${trend.delta} puntos</span> — la alerta de velocidad pasó de ${trend.prevPct}% (${trend.prevName}) a ${trend.currPct}% (${trend.currName}).`;
+                } else if (trend.delta < -3) {
+                    trendHtml = `<br>📈 <span class="font-bold text-slate-200">Tendencia:</span> <span class="text-emerald-400 font-semibold">mejoró ${Math.abs(trend.delta)} puntos</span> — la alerta de velocidad bajó de ${trend.prevPct}% (${trend.prevName}) a ${trend.currPct}% (${trend.currName}).`;
+                } else {
+                    trendHtml = `<br>📈 <span class="font-bold text-slate-200">Tendencia:</span> <span class="text-slate-300">estable</span> entre ${trend.prevName} (${trend.prevPct}%) y ${trend.currName} (${trend.currPct}%) en alerta de velocidad.`;
+                }
+            }
+
             let html = `
                 <div class="p-4 bg-slate-900/60 border rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 transition-colors duration-500 shadow-md ${borderClass}">
                     <div class="flex items-start gap-4">
@@ -1406,7 +1540,7 @@
                                 ${mainBlocker && mainBlocker.name !== "Ninguno" 
                                     ? `El mayor bloqueador es <strong class="text-slate-200">"${mainBlocker.name}"</strong> (presente en el ${mainBlocker.percentage}% de los reportes).` 
                                     : `No se detectan bloqueadores significativos impactando en este corte temporal.`}
-                                👉 <span class="font-bold text-slate-200">Sugerencia Táctica:</span> ${suggestion}
+                                👉 <span class="font-bold text-slate-200">Sugerencia Táctica:</span> ${suggestion}${trendHtml}
                             </p>
                         </div>
                     </div>
