@@ -537,7 +537,7 @@
         const TEST_ADMIN_TOKEN = "admin-satrack-2026";
         const TEST_TEAM_TOKEN = "equipo-satrack-2026";
 
-        // Lista de equipos (debe coincidir con la tabla `teams` en Supabase; se usa como respaldo si la consulta falla)
+        // Lista de equipos para referencia. Los ID reales siempre se obtienen de Supabase.
         const TEAMS_FALLBACK = [
             { name: "Exploradores", category: "Producto" }, { name: "Rangers", category: "Producto" },
             { name: "Synecta", category: "Producto" }, { name: "Rocket", category: "Producto" },
@@ -579,6 +579,14 @@
             const el = document.getElementById('authError');
             el.innerText = msg;
             el.classList.toggle('hidden', !msg);
+        }
+
+        function describeDatabaseError(error) {
+            const detail = error?.message || String(error || 'Error desconocido');
+            if (/failed to fetch|networkerror|network request failed|load failed/i.test(detail)) {
+                return 'No se pudo conectar con la base de datos. Comprueba tu conexión, que el proyecto de Supabase esté activo y que la red permita acceder a él. Luego vuelve a intentar. Detalle: ' + detail;
+            }
+            return detail;
         }
 
         async function signInWithMicrosoft() {
@@ -638,22 +646,30 @@
             errEl.classList.add('hidden');
             const token = document.getElementById('testTokenInput').value.trim();
 
-            if (token === TEST_ADMIN_TOKEN) {
-                await testLoginAsAdmin();
-            } else if (token === TEST_TEAM_TOKEN) {
-                await showTestTeamPicker();
-            } else {
-                errEl.innerText = 'Token inválido. Verifica que lo copiaste bien.';
+            try {
+                if (token === TEST_ADMIN_TOKEN) {
+                    await testLoginAsAdmin();
+                } else if (token === TEST_TEAM_TOKEN) {
+                    await showTestTeamPicker();
+                } else {
+                    errEl.innerText = 'Token inválido. Verifica que lo copiaste bien.';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                errEl.innerText = describeDatabaseError(error);
                 errEl.classList.remove('hidden');
             }
         }
 
         async function loadTeamsForTestMode() {
-            const { data: teamsData } = await supabaseClient.from('teams').select('*').order('category').order('name');
-            state.teams = (teamsData && teamsData.length) ? teamsData : TEAMS_FALLBACK.map((t) => ({ id: t.name, ...t }));
+            const { data: teamsData, error } = await supabaseClient.from('teams').select('*').order('category').order('name');
+            if (error) throw error;
+            if (!teamsData?.length) throw new Error('No hay equipos registrados en la base de datos.');
+            state.teams = teamsData;
         }
 
         async function testLoginAsAdmin() {
+            await loadTeamsForTestMode();
             document.getElementById('testTokenGate').classList.add('hidden');
             document.getElementById('testTokenGate').classList.remove('flex');
 
@@ -661,7 +677,6 @@
             state.profile = { id: 'test-admin', email: 'token-admin@satrack.com', role: 'admin' };
             state.isAdmin = true;
 
-            await loadTeamsForTestMode();
             state.myTeams = state.teams; // el token de admin "pertenece" a todos, para poder gestionar cualquiera
 
             state.viewingTeamId = state.teams[0] ? state.teams[0].id : null;
@@ -2217,7 +2232,7 @@
                     .insert({ team_id: state.viewingTeamId, name: name, period: period, created_by: DEV_MODE ? null : state.user.id })
                     .select().single();
 
-                if (sprintErr) { errDiv.innerText = "No se pudo crear el sprint: " + sprintErr.message; errDiv.classList.remove('hidden'); return; }
+                if (sprintErr) { errDiv.innerText = "No se pudo crear el sprint: " + describeDatabaseError(sprintErr); errDiv.classList.remove('hidden'); return; }
 
                 // 2) Insertar las respuestas asociadas
                 const rows = responses.map(r => ({
@@ -2225,7 +2240,7 @@
                     anonymous_name: r.anonymousName, speed: r.speed, factors: r.factors, observation: r.observation
                 }));
                 const { error: respErr } = await supabaseClient.from('responses').insert(rows);
-                if (respErr) { errDiv.innerText = "El sprint se creó pero hubo un error cargando respuestas: " + respErr.message; errDiv.classList.remove('hidden'); return; }
+                if (respErr) { errDiv.innerText = "El sprint se creó pero hubo un error cargando respuestas: " + describeDatabaseError(respErr); errDiv.classList.remove('hidden'); return; }
 
                 closeUploadModal();
                 await loadSprintsFromSupabase();
